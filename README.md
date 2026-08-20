@@ -1,10 +1,17 @@
 # sudo LEARN — a Linux command trainer
 
+**v0.1** · &copy; 2026 Avery LLC. All rights reserved.
+
 A browser game for learning and drilling the Linux command line, built for a
-383 Linux commands class. It covers **221 commands, flags and keystrokes** across
-nine topics, from `pwd` all the way through Vim's command-line mode.
+383 Linux commands class. The course is planned as **seven modules**;
+**Module 1 — Linux Fundamentals** is loaded in full: **221 commands, flags and
+keystrokes** across nine topics, from `pwd` all the way through Vim's
+command-line mode.
 
 Everything runs client-side. No build step, no dependencies, no server.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history — it is also readable
+in-app from the **changelog** link in the page footer.
 
 ## What is in it
 
@@ -73,7 +80,14 @@ Push this repository, then in **Settings → Pages** set *Source* to
 The site appears at `https://<username>.github.io/<repo>/` after a minute.
 `.nojekyll` is included so Jekyll leaves the `assets/` folder alone.
 
-## Topics covered
+## Modules
+
+| Module | Status | Contents |
+|---|---|---|
+| 1 — Linux Fundamentals | **loaded** | the nine topics listed below (221 bites, 55 missions) |
+| 2–7 | not added yet | shown as locked placeholders in the Learn tab |
+
+### Module 1 — topics covered
 
 | Topic | Contents |
 |---|---|
@@ -87,16 +101,33 @@ The site appears at `https://<username>.github.io/<repo>/` after a minute.
 | The Vim Editor | modes, movement, insert/append, editing, yank & put, undo/search, command-line mode, buffers, substitution, `vimtutor` |
 | Bash Editing Modes | `set -o vi`, `set -o emacs` |
 
+## Adding the next module
+
+1. Add the new topics to `CURRICULUM` in `assets/js/data.js`, each tagged
+   `mod: <n>` next to its `id`, `name` and `icon`.
+2. Flip that module's `ready` flag to `true` in `MODULES` (same file), with a
+   real name and blurb.
+3. Add its terminal missions in `assets/js/missions.js` with `mod: <n>`.
+4. Add a `CHANGELOG` entry at the top of the array in `data.js`, bump `VERSION`,
+   and mirror it in `CHANGELOG.md`.
+
+Every screen reads from `MODULES`, so the new module shows up on its own.
+
 ## Files
 
 ```
-index.html              page shell and boot screen
+index.html              page shell, boot screen and footer
 assets/css/style.css    six themes, terminal chrome, responsive layout
-assets/js/data.js       the curriculum: 9 topics, 32 lessons, 221 bites
+assets/js/data.js       version, changelog, module registry, and the
+                        curriculum: Module 1's 9 topics, 32 lessons, 221 bites
 assets/js/vfs.js        virtual filesystem + shell (about 60 commands)
-assets/js/missions.js   55 terminal missions with state-based checking
+assets/js/missions.js   55 Module 1 terminal missions, state-based checking
 assets/js/app.js        game engine: chunking, quizzes, spaced repetition, UI
 ```
 
 Progress is stored in your browser's `localStorage` under `sudolearn.v1`.
 Nothing leaves the machine.
+
+---
+
+&copy; 2026 Avery LLC. All rights reserved.

@@ -275,7 +275,7 @@ code,.mono{font-family:var(--font)}
 .heat i.l1{background:color-mix(in srgb,var(--accent) 30%,var(--sel))}
 .heat i.l2{background:color-mix(in srgb,var(--accent) 60%,var(--sel))}
 .heat i.l3{background:var(--accent)}
-.masterrow{display:grid;grid-template-columns:150px 1fr 46px;gap:10px;align-items:center;font-size:12.5px;padding:5px 0}
+.masterrow{display:grid;grid-template-columns:minmax(140px,215px) 1fr 46px;gap:10px;align-items:center;font-size:12.5px;padding:5px 0}
 .masterrow .nm{color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .masterrow .pc{color:var(--dim);text-align:right}
 
@@ -312,3 +312,25 @@ code,.mono{font-family:var(--font)}
   #term{height:44vh;font-size:12.5px}
   .flash{padding:18px 16px}
 }
+
+/* ---------- footer, changelog, locked modules ---------- */
+.sitefoot{
+  display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:10px;font-size:11.5px;color:var(--dim);
+}
+.sitefoot .sep{opacity:.5}
+.linkbtn{
+  background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;
+}
+.linkbtn:hover{filter:brightness(1.2)}
+.release{border-left:2px solid var(--line);padding:2px 0 2px 14px;margin:16px 0}
+.release h3{margin:0;font-size:14px;color:var(--accent)}
+.release h3 .muted{font-size:12px;font-weight:400}
+.release .rt{font-size:13px;color:var(--fg);margin:2px 0 6px}
+.release ul{margin:0;padding-left:18px}
+.release li{font-size:12.5px;color:var(--dim);margin-bottom:4px;line-height:1.5}
+.release.upcoming{border-left-style:dashed}
+.release.upcoming h3{color:var(--dim)}
+.card.locked{opacity:.55;border-style:dashed}
+.card.locked h3{color:var(--dim)}

@@ -142,7 +142,7 @@ const TABS = [
 /* ---------------- boot ---------------- */
 const BOOT_LINES = [
   '[  <b>OK</b>  ] Started Command Practice Daemon',
-  '[  <b>OK</b>  ] Mounted /usr/share/curriculum (221 commands)',
+  `[  <b>OK</b>  ] Mounted /usr/share/curriculum (Module 1, ${ALL_ITEMS.length} commands)`,
   '[  <b>OK</b>  ] Reached target Multi-User System',
   '[  <b>OK</b>  ] Loaded student progress from localStorage',
   '',
@@ -217,7 +217,9 @@ function renderHome(s) {
   s.innerHTML = prompt('./sudolearn --start') + `
     <h1>sudo LEARN — practise Linux without breaking anything</h1>
     <p class="lead">${ALL_ITEMS.length} commands, flags and keystrokes, cut into ${countChunks()} bite-sized sets.
-      Learn a set, get quizzed on it, then prove it in a real (simulated) terminal.</p>
+      Learn a set, get quizzed on it, then prove it in a real (simulated) terminal.<br>
+      <span class="tag ok">Module ${READY_MODULES.map(mo => mo.num).join(', ')} of ${MODULES.length} loaded</span>
+      <span class="tag">v${VERSION}</span></p>
 
     <div class="grid g3" style="margin-bottom:18px">
       <div class="card static"><div class="k muted" style="font-size:11px;letter-spacing:.7px">OVERALL MASTERY</div>
@@ -256,9 +258,9 @@ function renderHome(s) {
       </button>
     </div>
 
-    <h2>Where you stand</h2>
+    ${READY_MODULES.map(mo => `<h2>${esc(mo.label)} — where you stand</h2>
     <div class="grid g3">
-      ${CURRICULUM.map(c => {
+      ${mo.cats.map(c => {
         const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
         const pct = masteryPct(ids);
         return `<button class="card" data-cat="${c.id}">
@@ -267,7 +269,10 @@ function renderHome(s) {
           <div class="meta"><span>${ids.length} bites</span><span>${pct}%</span></div>
           <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
       }).join('')}
-    </div>`;
+    </div>`).join('')}
+    ${MODULES.filter(mo => !mo.ready).length ? `<p class="muted" style="font-size:12.5px;margin-top:18px">
+      Modules ${MODULES.filter(mo => !mo.ready).map(mo => mo.num).join(', ')} have not been added yet —
+      they will appear here as soon as their command lists land.</p>` : ''}`;
 
   s.querySelector('[data-act="continue"]').onclick = () => nextChunk ? startChunk(nextChunk.lesson.id, nextChunk.n) : go('drill');
   s.querySelector('[data-act="drill"]').onclick = () => startDrill(pickAdaptive(10));
@@ -322,13 +327,45 @@ function renderLearn(s) {
   if (A.quiz) return renderQuestion(s);
   if (A.learn) return renderChunkCard(s);
   if (A.view && CURRICULUM.some(c => c.id === A.view)) return renderLessonList(s, A.view);
+  if (A.view && /^mod\d+$/.test(A.view)) return renderTopicList(s, +A.view.slice(3));
+  return renderModuleList(s);
+}
 
+function renderModuleList(s) {
   s.innerHTML = prompt('ls /usr/share/curriculum') + `
-    <h1>Learn — pick a topic</h1>
-    <p class="lead">Every topic is split into short lessons, and every lesson into sets of ${P.settings.bite} bites.
+    <h1>Learn — pick a module</h1>
+    <p class="lead">The course runs over ${MODULES.length} modules. Module 1 is loaded;
+      the rest arrive as they are handed out.</p>
+    <div class="grid g2">
+      ${MODULES.map(mo => {
+        if (!mo.ready) return `<button class="card static locked" disabled>
+            <h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p>
+            <div class="meta"><span>not added yet</span><span>🔒</span></div></button>`;
+        const ids = mo.items.map(i => i.id);
+        const allChunks = mo.cats.reduce((n,c) => n + c.lessons.reduce((k,l) => k + chunksOf(l).length, 0), 0);
+        const doneChunks = mo.cats.reduce((n,c) => n + c.lessons.reduce((k,l) =>
+          k + chunksOf(l).filter((_,i) => P.chunks[chunkKey(l.id,i)]).length, 0), 0);
+        return `<button class="card" data-mod="${mo.num}">
+            <h3>${esc(mo.label)}</h3>
+            <p>${esc(mo.blurb)}</p>
+            <div class="meta"><span>${mo.cats.length} topics · ${ids.length} bites</span>
+              <span>${doneChunks}/${allChunks} sets done</span></div>
+            <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
+          </button>`;
+      }).join('')}
+    </div>`;
+  s.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => go('learn', 'mod' + b.dataset.mod));
+}
+
+function renderTopicList(s, num) {
+  const mo = MODULE_OF[num];
+  s.innerHTML = prompt(`cd module${num} && ls`) + `
+    <h1>${esc(mo.label)}</h1>
+    <p class="lead">${esc(mo.blurb)}<br>
+      Every topic is split into short lessons, and every lesson into sets of ${P.settings.bite} bites.
       One idea per card, then a quick check on just those cards. Change the set size with the <b>bite</b> chip at the top right.</p>
     <div class="grid g2">
-      ${CURRICULUM.map(c => {
+      ${mo.cats.map(c => {
         const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
         const lessons = c.lessons.length;
         const doneChunks = c.lessons.reduce((n,l) => n + chunksOf(l).filter((_,i) => P.chunks[chunkKey(l.id,i)]).length, 0);
@@ -341,8 +378,10 @@ function renderLearn(s) {
             <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
           </button>`;
       }).join('')}
-    </div>`;
+    </div>
+    <div class="row" style="margin-top:16px"><button class="btn" data-back>← all modules</button></div>`;
   s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => go('learn', b.dataset.cat));
+  s.querySelector('[data-back]').onclick = () => go('learn');
 }
 
 function renderLessonList(s, catId) {
@@ -350,6 +389,7 @@ function renderLessonList(s, catId) {
   s.innerHTML = prompt(`cd ${catId} && ls -l`) + `
     <h1>${cat.icon} ${esc(cat.name)}</h1>
     <p class="lead">${esc(cat.blurb)}</p>
+    <p class="muted" style="font-size:12px;margin:-12px 0 16px">${esc(MODULE_OF[cat.mod].label)}</p>
     ${cat.lessons.map(l => {
       const cs = chunksOf(l);
       const ids = l.items.map(i => i.id);
@@ -366,13 +406,13 @@ function renderLessonList(s, catId) {
         <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
       </div>`;
     }).join('')}
-    <button class="btn" data-back>← all topics</button>`;
+    <button class="btn" data-back>← ${esc(MODULE_OF[cat.mod].label)}</button>`;
   s.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startChunk(b.dataset.l, +b.dataset.n));
   s.querySelectorAll('[data-quiz]').forEach(b => b.onclick = () => {
     const l = LESSONS.find(x => x.id === b.dataset.quiz);
     startDrill(shuffle(l.items.map(i => i.id)));
   });
-  s.querySelector('[data-back]').onclick = () => go('learn');
+  s.querySelector('[data-back]').onclick = () => go('learn', 'mod' + cat.mod);
 }
 
 function startChunk(lessonId, n) {
@@ -445,18 +485,25 @@ function renderDrill(s) {
         <p>No multiple choice. Every answer typed out, exactly as you would at a real prompt.</p>
         <div class="meta"><span>hard mode</span><span>15 questions</span></div></button>
     </div>
-    <h2>Drill one topic</h2>
-    <div class="grid g3">
-      ${CURRICULUM.map(c => `<button class="card" data-cat="${c.id}"><h3>${c.icon} ${esc(c.name)}</h3>
-        <div class="meta"><span>${ALL_ITEMS.filter(i=>i.cat===c.id).length} bites</span>
-        <span>${masteryPct(ALL_ITEMS.filter(i=>i.cat===c.id).map(i=>i.id))}%</span></div></button>`).join('')}
-    </div>`;
+    ${READY_MODULES.map(mo => `
+      <h2>Drill one topic <span class="muted" style="font-size:12.5px">· ${esc(mo.label)}</span></h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" data-mod="${mo.num}">Drill the whole module · 20 questions</button></div>
+      <div class="grid g3">
+        ${mo.cats.map(c => `<button class="card" data-cat="${c.id}"><h3>${c.icon} ${esc(c.name)}</h3>
+          <div class="meta"><span>${ALL_ITEMS.filter(i=>i.cat===c.id).length} bites</span>
+          <span>${masteryPct(ALL_ITEMS.filter(i=>i.cat===c.id).map(i=>i.id))}%</span></div></button>`).join('')}
+      </div>`).join('')}`;
   s.querySelectorAll('[data-n]').forEach(b => b.onclick = () => startDrill(pickAdaptive(+b.dataset.n)));
   s.querySelector('[data-due]').onclick = () => { if (due.length) startDrill(sample(due, Math.min(15,due.length))); };
   s.querySelector('[data-type]').onclick = () => startDrill(pickAdaptive(15), { force:'type', title:'Typing drill' });
   s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
     const ids = ALL_ITEMS.filter(i => i.cat === b.dataset.cat).map(i => i.id);
     startDrill(sample(ids, Math.min(15, ids.length)), { title: CURRICULUM.find(c=>c.id===b.dataset.cat).name + ' drill' });
+  });
+  s.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => {
+    const mo = MODULE_OF[+b.dataset.mod];
+    startDrill(sample(mo.items.map(i => i.id), Math.min(20, mo.items.length)), { title: mo.label + ' drill' });
   });
 }
 
@@ -577,7 +624,8 @@ function renderTerminal(s) {
   s.innerHTML = prompt('bash --login') + `
     <h1>Terminal — a Linux box you cannot break</h1>
     <p class="lead">Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
-      so any correct route counts. Type <span class="cmdtag">help</span>, or just explore.</p>
+      so any correct route counts. Type <span class="cmdtag">help</span>, or just explore.<br>
+      <span class="tag ok">${MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span></p>
     <div class="termgrid">
       <div>
         <div id="term"></div>
@@ -722,7 +770,8 @@ function appWindow(o) {
 function renderReference(s) {
   s.innerHTML = prompt('apropos .') + `
     <h1>Reference — every command in the course</h1>
-    <p class="lead">${ALL_ITEMS.length} entries. Search by command, by what it does, or by flag. The bar on the right is your mastery.</p>
+    <p class="lead">${ALL_ITEMS.length} entries, all from ${READY_MODULES.map(mo => mo.label).join(' and ')}.
+      Search by command, by what it does, or by flag. The bar on the right is your mastery.</p>
     <input class="search" id="refsearch" placeholder="search…  try: permission, background, ls, vim, delete" autocomplete="off">
     <div id="refout"></div>`;
   const draw = (q = '') => {
@@ -733,7 +782,7 @@ function renderReference(s) {
     let html = '', cat = null;
     hits.forEach(i => {
       if (i.catName !== cat) { if (cat) html += '</div>'; cat = i.catName;
-        html += `<div class="cathead">${esc(cat)}</div><div class="reflist">`; }
+        html += `<div class="cathead">Module ${i.mod} · ${esc(cat)}</div><div class="reflist">`; }
       const b = (P.mastery[i.id]||{}).b || 0;
       html += `<div class="refrow"><div class="c">${esc(i.cmd)}</div>
         <div class="w">It ${esc(i.what)}.
@@ -777,10 +826,16 @@ function renderProgress(s) {
     <div class="heat">${days.map(d => { const xp = P.days[d]||0;
       return `<i class="${xp>=150?'l3':xp>=60?'l2':xp>0?'l1':''}" title="${d}: ${xp} XP"></i>`; }).join('')}</div>
 
-    <h2>Mastery by topic</h2>
-    ${CURRICULUM.map(c => { const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id); const p = masteryPct(ids);
+    <h2>Mastery by module</h2>
+    ${MODULES.map(mo => { const p = mo.ready ? masteryPct(mo.items.map(i => i.id)) : 0;
+      return `<div class="masterrow"><div class="nm">${esc(mo.label)}</div>
+        <div class="bar"><i style="width:${p}%"></i></div>
+        <div class="pc">${mo.ready ? p + '%' : '—'}</div></div>`; }).join('')}
+
+    ${READY_MODULES.map(mo => `<h2>Mastery by topic <span class="muted" style="font-size:12.5px">· ${esc(mo.label)}</span></h2>
+    ${mo.cats.map(c => { const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id); const p = masteryPct(ids);
       return `<div class="masterrow"><div class="nm">${c.icon} ${esc(c.name)}</div>
-        <div class="bar"><i style="width:${p}%"></i></div><div class="pc">${p}%</div></div>`; }).join('')}
+        <div class="bar"><i style="width:${p}%"></i></div><div class="pc">${p}%</div></div>`; }).join('')}`).join('')}
 
     <h2>Weakest right now</h2>
     ${weak.length ? `<div class="reflist">${weak.map(i => `<div class="refrow"><div class="c">${esc(i.cmd)}</div>
@@ -828,6 +883,10 @@ function openSettings() {
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Keyboard</h3>
     <p class="muted" style="font-size:12px">1–6 switch tabs · 1–4 pick an answer · Enter continues · Esc goes back · Ctrl-L clears the terminal</p>
+    <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">About</h3>
+    <p class="muted" style="font-size:12px">sudo LEARN v${VERSION} — ${READY_MODULES.length} of ${MODULES.length} modules loaded.<br>
+      &copy; ${new Date().getFullYear()} ${esc(COPYRIGHT_HOLDER)}. All rights reserved.</p>
+    <div class="row" style="margin-top:8px"><button class="btn" data-changelog>View changelog</button></div>
     <div class="row" style="margin-top:18px"><button class="btn primary" data-close>Close</button></div>
   </div>`;
   document.body.appendChild(d);
@@ -835,6 +894,34 @@ function openSettings() {
   d.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { P.settings.theme = b.dataset.theme; save(); applySettings(); d.remove(); openSettings(); });
   d.querySelectorAll('[data-bite]').forEach(b => b.onclick = () => { P.settings.bite = +b.dataset.bite; save(); d.remove(); openSettings(); render(); });
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
+  d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
+  d.querySelector('[data-close]').onclick = () => d.remove();
+}
+
+/* ---------------- changelog ---------------- */
+function openChangelog() {
+  const d = document.createElement('div');
+  d.className = 'modal';
+  d.innerHTML = `<div class="inner">
+    <h2>Changelog</h2>
+    <p class="muted" style="font-size:12.5px;margin-top:-6px">
+      sudo LEARN v${VERSION} · ${MODULES.length}-module course ·
+      ${READY_MODULES.length} module${READY_MODULES.length===1?'':'s'} loaded so far</p>
+    ${CHANGELOG.map(r => `<div class="release">
+        <h3>v${esc(r.version)} <span class="muted">· ${esc(r.date)}</span></h3>
+        <div class="rt">${esc(r.title)}</div>
+        <ul>${r.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+      </div>`).join('')}
+    <div class="release upcoming">
+      <h3>Planned</h3>
+      <div class="rt">Modules ${MODULES.filter(mo => !mo.ready).map(mo => mo.num).join(', ')}</div>
+      <ul><li>Command lists for the remaining modules, each with its own lessons, drills and terminal missions.</li></ul>
+    </div>
+    <p class="muted" style="font-size:11.5px">&copy; ${new Date().getFullYear()} ${esc(COPYRIGHT_HOLDER)}. All rights reserved.</p>
+    <div class="row" style="margin-top:14px"><button class="btn primary" data-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
 }
 
@@ -866,6 +953,10 @@ document.addEventListener('keydown', e => {
 /* ---------------- start ---------------- */
 applySettings();
 el('settingsbtn').onclick = openSettings;
+el('changelogbtn').onclick = openChangelog;
+el('verstamp').textContent = 'v' + VERSION;
+el('copyyear').textContent = new Date().getFullYear();
+el('copyholder').textContent = COPYRIGHT_HOLDER;
 el('bitebtn').onclick = () => {
   const order = [3,5,8]; P.settings.bite = order[(order.indexOf(P.settings.bite)+1) % order.length];
   save(); toast(`Bite size: ${P.settings.bite} cards per set`); render();

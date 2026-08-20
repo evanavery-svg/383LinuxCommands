@@ -6,6 +6,7 @@
      check  (sh, last) => true when solved. `last` is the line just typed
      hint   nudge, shown on request or after 3 wrong tries
      teach  item id linked back to the reference card
+     mod    course module the mission belongs to (defaults to 1 below)
    ===================================================================== */
 
 const used = (last, re) => re.test((last || '').trim());
@@ -158,4 +159,9 @@ const MISSIONS = [
   check:(sh,l)=>used(l,/^reset$/), hint:'One word: reset', teach:'reset' }
 ];
 
+/* every mission supplied so far belongs to Module 1 — later modules
+   should set `mod: <n>` on their own missions */
+MISSIONS.forEach(mi => { if (!mi.mod) mi.mod = 1; });
+
 const TOURS = [...new Set(MISSIONS.map(m => m.tour))];
+const missionsFor = num => MISSIONS.filter(mi => mi.mod === num);

@@ -10,11 +10,50 @@
      note  the "chunk" — one extra easy-to-remember fact
      ans   extra accepted answers for type-it-in questions
      kind  'cmd' (default) | 'key' (keystroke) | 'opt' (flag)
+     mod   which course module a topic belongs to (see MODULES below)
+   ---------------------------------------------------------------------
+   The course runs over seven modules. Only Module 1 has been supplied so
+   far. To add the next one:
+     1. add its categories here with `mod: 2`
+     2. flip that module's `ready` flag in MODULES
+     3. add its missions in missions.js with `mod: 2`
+     4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
+
+const VERSION = '0.1';
+const COPYRIGHT_HOLDER = 'Avery LLC';
+
+/* Newest first. This is the single source of truth for the in-app
+   changelog; CHANGELOG.md mirrors it. */
+const CHANGELOG = [
+  { version:'0.1', date:'2026-08-20', title:'First release — Module 1',
+    notes:[
+      'Module 1 in full: 9 topics, 32 lessons, 221 commands, flags and keystrokes.',
+      'Learn mode with adjustable bite-sized card sets (3 / 5 / 8) and a quick check after each set.',
+      'Drill mode: multiple choice for new commands, type-from-memory once they stick.',
+      'Leitner spaced repetition for commands that are starting to fade.',
+      'Terminal mode: simulated Fedora box with a virtual filesystem, plus 55 missions.',
+      'Searchable reference of every entry, and a progress screen with XP, ranks, streak and heatmap.',
+      'Six themes with optional CRT scanlines; works down to phone width.'
+    ] }
+];
+
+/* The seven modules of the course. Modules 2-7 are placeholders until
+   their command lists are added. */
+const MODULES = [
+  { num:1, name:'Linux Fundamentals', ready:true,
+    blurb:'Navigation, file handling, viewing files, permissions and users, processes and jobs, help systems, packages, Vim and bash editing modes.' },
+  { num:2, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:3, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:4, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:5, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:6, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:7, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' }
+];
 
 const CURRICULUM = [
 {
-  id: 'nav', name: 'Navigation & Listing', icon: '🧭',
+  mod: 1, id: 'nav', name: 'Navigation & Listing', icon: '🧭',
   blurb: 'Knowing where you are, moving around, and seeing what is there.',
   lessons: [
     {
@@ -83,7 +122,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id: 'files', name: 'Files & Directories', icon: '🗂️',
+  mod: 1, id: 'files', name: 'Files & Directories', icon: '🗂️',
   blurb: 'Copying, moving, creating, deleting and linking. The commands that actually change things.',
   lessons: [
     {
@@ -159,7 +198,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'view', name:'Viewing & Inspecting Files', icon:'👁️',
+  mod: 1, id:'view', name:'Viewing & Inspecting Files', icon:'👁️',
   blurb:'Reading file contents without opening an editor.',
   lessons:[
     {
@@ -208,7 +247,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'perms', name:'Permissions & Users', icon:'🔐',
+  mod: 1, id:'perms', name:'Permissions & Users', icon:'🔐',
   blurb:'Who owns a file, who may read it, and how to become someone else.',
   lessons:[
     {
@@ -314,7 +353,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'proc', name:'Processes & Jobs', icon:'⚙️',
+  mod: 1, id:'proc', name:'Processes & Jobs', icon:'⚙️',
   blurb:'Seeing what is running, backgrounding it, and killing it when it misbehaves.',
   lessons:[
     {
@@ -436,7 +475,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'help', name:'Identity & Help', icon:'📖',
+  mod: 1, id:'help', name:'Identity & Help', icon:'📖',
   blurb:'How to answer your own questions without leaving the terminal.',
   lessons:[
     {
@@ -487,7 +526,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'sys', name:'Environment & Packages', icon:'📦',
+  mod: 1, id:'sys', name:'Environment & Packages', icon:'📦',
   blurb:'Shell variables and installing software.',
   lessons:[
     {
@@ -509,7 +548,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'vim', name:'The Vim Editor', icon:'✍️',
+  mod: 1, id:'vim', name:'The Vim Editor', icon:'✍️',
   blurb:'Vim is modal: the same key means different things depending on the mode you are in.',
   lessons:[
     {
@@ -668,7 +707,7 @@ const CURRICULUM = [
   ]
 },
 {
-  id:'bash', name:'Bash Editing Modes', icon:'⌨️',
+  mod: 1, id:'bash', name:'Bash Editing Modes', icon:'⌨️',
   blurb:'Your command line itself has an editor, and you get to choose which one.',
   lessons:[
     {
@@ -688,8 +727,18 @@ const CURRICULUM = [
 /* ---- flat index -------------------------------------------------- */
 const ALL_ITEMS = [];
 CURRICULUM.forEach(cat => cat.lessons.forEach(les => les.items.forEach(it => {
-  it.cat = cat.id; it.catName = cat.name; it.lesson = les.id; it.lessonTitle = les.title;
+  it.mod = cat.mod; it.cat = cat.id; it.catName = cat.name; it.lesson = les.id; it.lessonTitle = les.title;
   ALL_ITEMS.push(it);
 })));
 const ITEM_BY_ID = Object.fromEntries(ALL_ITEMS.map(i => [i.id, i]));
-const LESSONS = CURRICULUM.flatMap(c => c.lessons.map(l => ({ ...l, cat: c.id, catName: c.name, icon: c.icon })));
+const LESSONS = CURRICULUM.flatMap(c => c.lessons.map(l => ({ ...l, mod: c.mod, cat: c.id, catName: c.name, icon: c.icon })));
+
+/* hang each module's topics off its entry, and count what it holds */
+MODULES.forEach(mo => {
+  mo.id    = 'mod' + mo.num;
+  mo.cats  = CURRICULUM.filter(c => c.mod === mo.num);
+  mo.items = ALL_ITEMS.filter(i => i.mod === mo.num);
+  mo.label = mo.name ? `Module ${mo.num} — ${mo.name}` : `Module ${mo.num}`;
+});
+const MODULE_OF = Object.fromEntries(MODULES.map(mo => [mo.num, mo]));
+const READY_MODULES = MODULES.filter(mo => mo.ready);
