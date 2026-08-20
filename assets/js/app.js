@@ -516,7 +516,7 @@ function startChunk(lessonId, n) {
   const lesson = LESSONS.find(l => l.id === lessonId);
   const items = chunksOf(lesson)[n];
   A.tab = 'learn';
-  A.learn = { lesson, n, total: chunksOf(lesson).length, items, i: 0 };
+  A.learn = { lesson, n, total: chunksOf(lesson).length, items, i: 0, typed: {} };
   render();
 }
 
@@ -525,6 +525,9 @@ function renderChunkCard(s) {
   const it = L.items[L.i];
   const box = m(it.id).b;
   const last = L.i === L.items.length - 1;
+  const isKey = it.kind === 'key';
+  const typed = !!L.typed[L.i];
+
   s.innerHTML = `
     <div class="cardtop">
       <button class="x" data-exit title="Leave this set">✕</button>
@@ -541,15 +544,63 @@ function renderChunkCard(s) {
       ${it.note ? `<div class="chunknote"><b>Remember</b> ${esc(it.note)}</div>` : ''}
     </div>
 
+    <div class="typeit ${typed ? 'ok' : ''}" id="typeit">
+      <div class="tlabel">${typed ? '✓ typed' : isKey ? 'Now type the keystroke yourself' : 'Now type it yourself'}</div>
+      <div class="typebox" id="tbox">
+        ${isKey ? '<span class="ps key">⌨</span>' : '<span class="ps">student@fedora:~$</span>'}
+        <input id="cardin" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               ${typed ? 'disabled' : ''} value="${typed ? esc(it.cmd) : ''}"
+               placeholder="${isKey ? 'the keystroke…' : 'type the command…'}">
+      </div>
+      <div class="tfb" id="cardfb">${typed ? '' : 'Copy it out — muscle memory is half of learning a shell.'}</div>
+    </div>
+
     <div class="row" style="margin-top:16px">
       <button class="btn" data-prev ${L.i===0?'disabled':''}>←</button>
       <span class="spacer"></span>
-      <button class="btn primary big" data-next>${last ? 'Quick check →' : 'Got it →'}</button>
+      <button class="btn primary big" data-next ${typed ? '' : 'disabled'}>${
+        typed ? (last ? 'Quick check →' : 'Got it →') : 'Type it above first'}</button>
     </div>
-    <p class="muted center" style="font-size:11.5px;margin-top:10px">press <span class="kbd">Enter</span> to keep going</p>`;
-  s.querySelector('[data-next]').onclick = advanceChunk;
+    <p class="center" style="margin-top:10px">
+      <button class="linkbtn muted" data-skip style="font-size:11.5px">skip typing this one</button>
+    </p>`;
+
+  const input = el('cardin'), fb = el('cardfb'), tbox = el('tbox'), next = s.querySelector('[data-next]');
+  if (!typed) {
+    input.focus();
+    let tries = 0;
+    const submit = () => {
+      const val = input.value;
+      if (!val.trim()) return;
+      if (checkTyped(it, val)) {
+        if (L.pending) return;
+        L.pending = true;
+        L.typed[L.i] = true;
+        awardXP(3); save();
+        el('typeit').classList.add('ok');
+        tbox.classList.remove('bad'); tbox.classList.add('good');
+        input.disabled = true;
+        fb.innerHTML = '<span class="good">✓ That is it — +3 XP</span>';
+        next.disabled = false;
+        next.textContent = last ? 'Quick check →' : 'Got it →';
+        renderStatusbar();                      // show the XP straight away
+        setTimeout(() => { L.pending = false; if (A.learn === L) advanceChunk(); }, 700);  // they may have navigated away
+      } else {
+        tries++;
+        tbox.classList.remove('good'); tbox.classList.add('bad');
+        setTimeout(() => tbox.classList.remove('bad'), 450);
+        fb.innerHTML = tries >= 2
+          ? `<span class="bad">Not quite.</span> Type it exactly like this: <span class="cmdtag">${esc(it.cmd)}</span>`
+          : '<span class="bad">Not quite</span> — check the line above and try again.';
+        input.select();
+      }
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submit(); } };
+  }
+  next.onclick = advanceChunk;
   s.querySelector('[data-prev]').onclick = () => { if (L.i>0) { L.i--; render(); } };
   s.querySelector('[data-exit]').onclick = () => go('learn', 'mod' + (L.lesson.mod || 1));
+  s.querySelector('[data-skip]').onclick = () => advanceChunk();
 }
 function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 
@@ -644,7 +695,7 @@ function renderQuestion(s) {
     const submit = () => answer(checkTyped(item, input.value), input.value);
     el('tgo').onclick = submit;
     el('tskip').onclick = () => answer(false, '');
-    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submit(); } };
   } else {
     body.innerHTML = `<div class="opts">${q.options.map((o,i) =>
       `<button class="opt" data-i="${i}"><span class="n">${i+1}</span><span>${esc(o.label)}</span></button>`).join('')}</div>`;
@@ -689,11 +740,11 @@ function renderQuizResult(s) {
   const Q = A.quiz;
   const pct = Math.round(Q.right / Q.ids.length * 100);
   let bonus = 0;
-  if (Q.opt.chunk) {
+  if (Q.opt.chunk && !Q.opt.replay) {
     P.chunks[chunkKey(Q.opt.chunk.lessonId, Q.opt.chunk.n)] = true;
     markLearned(Q.opt.chunk.items);
     bonus = 40; awardXP(40);
-  } else if (pct === 100) { bonus = 25; awardXP(25); }
+  } else if (pct === 100 && !Q.opt.replay) { bonus = 25; awardXP(25); }
   if (pct === 100 && Q.ids.length >= 3) P.perfects++;
   save();
   const fresh = checkBadges();
@@ -717,13 +768,16 @@ function renderQuizResult(s) {
     <div class="row" style="margin-top:18px">
       ${Q.opt.chunk ? '<button class="btn primary" data-nextset>▶ Next set</button>'
                     : '<button class="btn primary" data-again>Drill again</button>'}
-      ${Q.wrong.length ? '<button class="btn" data-fix>Retry just the misses</button>' : ''}
+      <button class="btn" data-redo>↻ Retry all ${Q.ids.length}</button>
+      ${Q.wrong.length ? `<button class="btn" data-fix>Retry just the ${[...new Set(Q.wrong)].length} missed</button>` : ''}
       ${Q.opt.chunk ? '<button class="btn" data-path>Back to the path</button>' : ''}
       <button class="btn ghost" data-home>← home</button>
     </div>`;
   const ag = s.querySelector('[data-again]'); if (ag) ag.onclick = () => startDrill(pickAdaptive(10));
   const pb = s.querySelector('[data-path]'); if (pb) pb.onclick = () => go('learn', 'mod' + Q.opt.chunk.mod);
-  const fix = s.querySelector('[data-fix]'); if (fix) fix.onclick = () => startDrill([...new Set(Q.wrong)]);
+  const fix = s.querySelector('[data-fix]');
+  if (fix) fix.onclick = () => startDrill([...new Set(Q.wrong)], { ...Q.opt, replay:true, title:'Second look' });
+  s.querySelector('[data-redo]').onclick = () => startDrill(shuffle(Q.ids), { ...Q.opt, replay:true, title:Q.title });
   const ns = s.querySelector('[data-nextset]');
   if (ns) ns.onclick = () => {
     const mod = Q.opt.chunk.mod;
@@ -1061,7 +1115,11 @@ function openChangelog() {
 
 /* ---------------- keyboard ---------------- */
 document.addEventListener('keydown', e => {
-  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
+  const ae = document.activeElement;
+  const typing = /^(INPUT|TEXTAREA)$/.test(ae?.tagName);
+  /* a focused button already fires its own click on Enter — stepping in here
+     as well would advance twice and skip a card */
+  const onButton = ae?.tagName === 'BUTTON';
   if (e.key === 'Escape') {
     const md = document.querySelector('.modal'); if (md) { md.remove(); return; }
     if (A.quiz) { A.quiz = null; render(); return; }
@@ -1072,7 +1130,8 @@ document.addEventListener('keydown', e => {
   }
   if (typing) return;
   if (e.key === 'Enter') {
-    const n = el('qnext') || document.querySelector('[data-next]');
+    if (onButton) return;
+    const n = el('qnext') || document.querySelector('[data-next]:not([disabled])');
     if (n) { e.preventDefault(); n.click(); }
     return;
   }

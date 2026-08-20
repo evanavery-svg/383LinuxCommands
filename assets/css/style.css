@@ -457,3 +457,22 @@ code,.mono{font-family:var(--font)}
 .chapter.dim{opacity:.5}
 .chapter.dim .step{cursor:not-allowed}
 .chapter.current{border-left-color:var(--accent)}
+
+/* ---------- type-it-yourself step on learning cards ---------- */
+.typeit{margin-top:16px;border:1px dashed var(--line);border-radius:9px;padding:13px 15px;background:var(--bg2);transition:.2s}
+.typeit.ok{border-style:solid;border-color:var(--good);background:color-mix(in srgb,var(--good) 8%,var(--bg2))}
+.typeit .tlabel{font-size:11.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+.typeit.ok .tlabel{color:var(--good)}
+.typeit .typebox{margin-bottom:0}
+.typeit .typebox .ps.key{color:var(--accent2)}
+.typeit .tfb{font-size:12px;color:var(--dim);margin-top:9px;min-height:17px;line-height:1.45}
+.typeit .tfb .good{color:var(--good)}
+.typeit .tfb .bad{color:var(--bad)}
+.typebox.good{border-color:var(--good);box-shadow:0 0 0 1px var(--good)}
+.typebox.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad);animation:shake .4s}
+@keyframes shake{10%,90%{transform:translateX(-2px)}30%,70%{transform:translateX(4px)}50%{transform:translateX(-4px)}}
+@media (prefers-reduced-motion:reduce){.typebox.bad{animation:none}}
+.linkbtn.muted{color:var(--dim);text-decoration:underline;text-underline-offset:3px}
+.linkbtn.muted:hover{color:var(--fg)}
+/* a disabled primary button must not still look like the thing to press */
+.btn.primary:disabled{background:transparent;color:var(--dim);border-color:var(--line);font-weight:400;opacity:.75}

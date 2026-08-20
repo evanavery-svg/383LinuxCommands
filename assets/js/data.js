@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.2';
+const VERSION = '0.3';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.3', date:'2026-08-20', title:'Type every command as you learn it',
+    notes:[
+      'Every learning card now has a prompt of its own \u2014 you type the command out before moving on. Enter checks it, and a correct answer is worth 3 XP.',
+      'Get it wrong and it says so; get it wrong twice and it shows you the exact text to copy.',
+      'There is a "skip typing this one" link if you would rather just read.',
+      'Results screen now offers Retry all as well as Retry just the missed ones.',
+      'Fixed: pressing Enter could advance two cards at once and skip one.'
+    ] },
   { version:'0.2', date:'2026-08-20', title:'Bite-sized path, calmer home page',
     notes:[
       'Home page is now just the module list. All the detail moved to the module\u2019s own page, one click in.',

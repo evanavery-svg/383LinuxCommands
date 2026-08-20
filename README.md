@@ -1,6 +1,6 @@
 # sudo LEARN — a Linux command trainer
 
-**v0.2** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.3** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -27,11 +27,17 @@ you would rather jump around.)
 
 **Learn** — one idea per card: the command, one plain sentence saying what it
 does, a worked example with realistic output, and a "Remember" hook (`-h` only
-matters with `-l`, because only long format prints sizes). Finish a set and you
-get a quick check on exactly those cards — nothing you have not just seen. Set
-size is adjustable (2 / 3 / 5 / 8 cards, default 3) with the **bite** chip in the
-title bar. Completion is tracked per card, so changing the size never loses your
-place.
+matters with `-l`, because only long format prints sizes). Then you **type it
+yourself** at a prompt on the card before moving on — reading a command and
+typing one are different skills, and only one of them is what you do in a real
+shell. Get it wrong twice and it shows you the exact text to copy; there is a
+skip link if you would rather just read.
+
+Finish a set and you get a quick check on exactly those cards — nothing you have
+not just seen — with **Retry all** and **Retry just the missed ones** at the end.
+Set size is adjustable (2 / 3 / 5 / 8 cards, default 3) with the **bite** chip in
+the title bar. Completion is tracked per card, so changing the size never loses
+your place.
 
 **Drill** — adaptive questions. A command you have never met arrives as multiple
 choice; once you are getting it right, the game stops offering options and makes
@@ -75,7 +81,7 @@ tabs, prompt lines, and an htop-style status bar.
 | `1`–`6` | switch tabs |
 | `Esc` | step back out (card → path → module → home) |
 | `1`–`4` | pick a multiple-choice answer |
-| `Enter` | next card / next question |
+| `Enter` | check what you typed / next question |
 | `↑` `↓` | command history in the terminal |
 | `Ctrl-L` | clear the terminal |
 

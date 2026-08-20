@@ -12,6 +12,29 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.3] — 2026-08-20
+
+Learning is now hands-on: you type each command instead of only reading it.
+
+### Added
+- **Type-it step on every learning card.** Under the explanation there is a real
+  prompt. Type the command, press Enter, and it is checked before you move on —
+  worth **3 XP** each. Correct answers advance automatically.
+- Wrong answers say so and let you retry; a second wrong attempt reveals the
+  exact text to copy. Keystroke cards (`Ctrl-c`, `Esc`, `dd`) get a keyboard
+  prompt instead of a shell prompt, and accept spellings like `ctrl-c`,
+  `control c` or `^c`.
+- A **skip typing this one** link, for when you would rather just read.
+- **Retry all** on the results screen, alongside Retry just the missed ones.
+  Replays do not re-award the set completion bonus.
+
+### Fixed
+- Pressing **Enter** could fire twice — once from the focused button and once
+  from the global shortcut — advancing two cards and skipping one. Enter now
+  advances exactly one step, whether you use the mouse or the keyboard only.
+
+---
+
 ## [0.2] — 2026-08-20
 
 Reshaped around learning it from scratch: a calmer home page, and the course
