@@ -9,9 +9,12 @@ const RANKS = ['Guest','Novice','User','Power User','Scripter','Sysadmin','Kerne
 const DEFAULTS = {
   xp: 0, days: {}, streak: 0, lastDay: null,
   mastery: {},              // id -> {b:box 0..5, c:correct, w:wrong, ts:lastSeen}
+  learned: {},              // id -> true once its set has been finished
   missions: {},             // id -> true
-  chunks: {},               // "lessonId#n" -> true
-  settings: { theme:'matrix', crt:true, bite:5, sound:false }
+  badges: {},               // id -> date unlocked
+  chunks: {},               // legacy set-completion marks, kept so old saves still read
+  bestCombo: 0, perfects: 0, goal: 100,
+  settings: { theme:'matrix', crt:true, bite:3, freeroam:false }
 };
 
 let P = load();
@@ -50,9 +53,54 @@ function awardXP(n) {
 function scoreAnswer(id, ok) {
   const s = m(id);
   s.ts = Date.now();
-  if (ok) { s.c++; s.b = Math.min(5, s.b + 1); awardXP(10); }
-  else    { s.w++; s.b = Math.max(0, s.b - 1); awardXP(2); }
+  if (ok) {
+    s.c++; s.b = Math.min(5, s.b + 1);
+    A.combo++;
+    if (A.combo > P.bestCombo) P.bestCombo = A.combo;
+    awardXP(10 + Math.min(10, Math.max(0, A.combo - 2) * 2));   // combo bonus, capped
+  } else {
+    s.w++; s.b = Math.max(0, s.b - 1); A.combo = 0; awardXP(2);
+  }
   save();
+}
+
+/* a set counts as finished once every card in it has been learned.
+   Tracking per item (not per set) means changing the bite size does not
+   wipe your ticks. */
+function setDone(items) { return items.every(i => P.learned[i.id]); }
+function markLearned(items) { items.forEach(i => { P.learned[i.id] = true; }); save(); }
+function learnedCount() { return Object.keys(P.learned).length; }
+function missionCount() { return Object.keys(P.missions).length; }
+function todayXP() { return P.days[today()] || 0; }
+function goalPct() { return Math.min(100, Math.round(todayXP() / P.goal * 100)); }
+
+/* ---------------- badges ---------------- */
+const BADGES = [
+  { id:'first',   icon:'🌱', name:'First steps',      desc:'Finish your first set',              test:()=>learnedCount() > 0 },
+  { id:'bites25', icon:'📚', name:'Twenty-five in',   desc:'Learn 25 commands',                  test:()=>learnedCount() >= 25 },
+  { id:'bites100',icon:'🎓', name:'Century',          desc:'Learn 100 commands',                 test:()=>learnedCount() >= 100 },
+  { id:'combo5',  icon:'🔥', name:'On a roll',        desc:'5 correct answers in a row',         test:()=>P.bestCombo >= 5 },
+  { id:'combo10', icon:'⚡', name:'Unstoppable',      desc:'10 correct answers in a row',        test:()=>P.bestCombo >= 10 },
+  { id:'perfect', icon:'💯', name:'Flawless',         desc:'Score 100% on a quick check',        test:()=>P.perfects >= 1 },
+  { id:'goal',    icon:'🎯', name:'Goal met',         desc:'Hit your daily XP goal',             test:()=>todayXP() >= P.goal },
+  { id:'streak3', icon:'📅', name:'Three days',       desc:'Practise 3 days running',            test:()=>P.streak >= 3 },
+  { id:'streak7', icon:'🗓️', name:'A full week',      desc:'Practise 7 days running',            test:()=>P.streak >= 7 },
+  { id:'mission1',icon:'🖥️', name:'Hands on',         desc:'Solve your first terminal mission',  test:()=>missionCount() >= 1 },
+  { id:'mission10',icon:'🛠️',name:'Shell tinkerer',   desc:'Solve 10 terminal missions',         test:()=>missionCount() >= 10 },
+  { id:'missionAll',icon:'🏆',name:'Mission complete', desc:'Solve every terminal mission',       test:()=>missionCount() >= MISSIONS.length },
+  { id:'vimquit', icon:'🚪', name:'Escaped Vim',      desc:'Master how to quit Vim',             test:()=>(P.mastery.vim_qbang||{}).b >= 3 },
+  { id:'mod50',   icon:'🥈', name:'Halfway',          desc:'50% mastery of a whole module',      test:()=>READY_MODULES.some(mo => masteryPct(mo.items.map(i=>i.id)) >= 50) },
+  { id:'mod100',  icon:'👑', name:'Module mastered',  desc:'100% mastery of a whole module',     test:()=>READY_MODULES.some(mo => masteryPct(mo.items.map(i=>i.id)) >= 100) }
+];
+function checkBadges() {
+  const fresh = [];
+  for (const b of BADGES) {
+    if (P.badges[b.id]) continue;
+    let got = false; try { got = !!b.test(); } catch {}
+    if (got) { P.badges[b.id] = today(); fresh.push(b); }
+  }
+  if (fresh.length) { save(); fresh.forEach((b,i) => setTimeout(() => toast(`${b.icon} <b>Badge unlocked</b> — ${esc(b.name)}`), 500 + i*1400)); }
+  return fresh;
 }
 
 /* ---------------- answer checking ---------------- */
@@ -131,7 +179,8 @@ const A = {
   sh: null,
   mission: null,
   missTries: 0,
-  histIdx: -1
+  histIdx: -1,
+  combo: 0
 };
 
 const TABS = [
@@ -141,7 +190,7 @@ const TABS = [
 
 /* ---------------- boot ---------------- */
 const BOOT_LINES = [
-  '[  <b>OK</b>  ] Started Command Practice Daemon',
+  `[  <b>OK</b>  ] Started Command Practice Daemon (sudo LEARN v${VERSION})`,
   `[  <b>OK</b>  ] Mounted /usr/share/curriculum (Module 1, ${ALL_ITEMS.length} commands)`,
   '[  <b>OK</b>  ] Reached target Multi-User System',
   '[  <b>OK</b>  ] Loaded student progress from localStorage',
@@ -186,8 +235,8 @@ function renderStatusbar() {
     `<span><b>${rank()}</b> · lvl ${level()}</span>` +
     `<span>XP <b>${P.xp}</b></span>` +
     `<span>streak <b>${P.streak}</b>d</span>` +
-    `<span>mastered <b>${done}</b>/${ALL_ITEMS.length}</span>` +
-    `<span>bite size <b>${P.settings.bite}</b></span>` +
+    `<span>learned <b>${learnedCount()}</b>/${ALL_ITEMS.length}</span>` +
+    `<span>today <b>${todayXP()}</b>/${P.goal} XP</span>` +
     `<span class="muted">^L clear · Esc back</span>`;
   const bb = el('bitebtn'); if (bb) bb.textContent = `bite: ${P.settings.bite}`;
   const tb = el('themebtn'); if (tb) tb.textContent = (THEMES.find(t => t[0] === P.settings.theme) || ['','theme'])[1].toLowerCase();
@@ -210,71 +259,114 @@ function toast(msg) {
 }
 
 /* ---------------- HOME ---------------- */
+/* The home page is deliberately bare: just the modules. Everything else
+   lives one click deeper, on the module's own page. */
 function renderHome(s) {
-  const due = dueItems();
-  const totalPct = masteryPct(ALL_ITEMS.map(i => i.id));
-  const nextChunk = firstUnfinishedChunk();
-  s.innerHTML = prompt('./sudolearn --start') + `
-    <h1>sudo LEARN — practise Linux without breaking anything</h1>
-    <p class="lead">${ALL_ITEMS.length} commands, flags and keystrokes, cut into ${countChunks()} bite-sized sets.
-      Learn a set, get quizzed on it, then prove it in a real (simulated) terminal.<br>
-      <span class="tag ok">Module ${READY_MODULES.map(mo => mo.num).join(', ')} of ${MODULES.length} loaded</span>
-      <span class="tag">v${VERSION}</span></p>
+  if (A.view && /^mod\d+$/.test(A.view)) return renderModuleHome(s, +A.view.slice(3));
 
-    <div class="grid g3" style="margin-bottom:18px">
-      <div class="card static"><div class="k muted" style="font-size:11px;letter-spacing:.7px">OVERALL MASTERY</div>
-        <div style="font-size:26px;color:var(--accent)">${totalPct}%</div>
-        <div class="bar" style="margin-top:8px"><i style="width:${totalPct}%"></i></div></div>
-      <div class="card static"><div class="k muted" style="font-size:11px;letter-spacing:.7px">RANK</div>
-        <div style="font-size:22px;color:var(--accent)">${rank()}</div>
-        <div class="muted" style="font-size:12px">level ${level()} · ${P.xp % XP_PER_LEVEL}/${XP_PER_LEVEL} XP to next</div>
-        <div class="bar" style="margin-top:8px"><i style="width:${(P.xp%XP_PER_LEVEL)/XP_PER_LEVEL*100}%"></i></div></div>
-      <div class="card static"><div class="k muted" style="font-size:11px;letter-spacing:.7px">DUE FOR REVIEW</div>
-        <div style="font-size:26px;color:${due.length?'var(--warn)':'var(--accent)'}">${due.length}</div>
-        <div class="muted" style="font-size:12px">${due.length ? 'spaced repetition keeps these from fading' : 'nothing fading yet — nice'}</div></div>
+  s.innerHTML = prompt('ls ~/course') + `
+    <div class="hero">
+      <h1>Choose a module</h1>
+      <p class="lead">Work through one module at a time. Each is broken into short sets
+        of ${P.settings.bite} cards — a couple of minutes each.</p>
+    </div>
+    <div class="modlist">
+      ${MODULES.map(mo => {
+        if (!mo.ready) return `<div class="modrow locked">
+            <div class="num">${mo.num}</div>
+            <div class="body"><h3>${esc(mo.label)}</h3></div>
+            <div class="go">not added yet 🔒</div></div>`;
+        const ids = mo.items.map(i => i.id);
+        const pct = masteryPct(ids);
+        const sets = allSets(mo.num);
+        const done = sets.filter(x => x.done).length;
+        return `<button class="modrow" data-mod="${mo.num}">
+            <div class="num">${mo.num}</div>
+            <div class="body">
+              <h3>${esc(mo.label)}</h3>
+              <p>${done ? `${done} of ${sets.length} sets done · ${pct}% mastered` : `${sets.length} short sets · start anywhere`}</p>
+              <div class="bar"><i style="width:${sets.length ? done/sets.length*100 : 0}%"></i></div>
+            </div>
+            <div class="go">${done ? '▶' : '▶'}</div>
+          </button>`;
+      }).join('')}
+    </div>
+    <p class="muted center" style="font-size:12px;margin-top:22px">
+      New here? Open Module 1 and press <b>Start learning</b> — it picks up wherever you left off.</p>`;
+  s.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => go('home', 'mod' + b.dataset.mod));
+}
+
+/* the module's own page — this is where all the detail lives */
+function renderModuleHome(s, num) {
+  const mo = MODULE_OF[num];
+  const ids = mo.items.map(i => i.id);
+  const sets = allSets(num);
+  const done = sets.filter(x => x.done).length;
+  const next = sets.find(x => !x.done);
+  const due = dueItems().filter(id => ITEM_BY_ID[id].mod === num);
+  const missions = missionsFor(num);
+  const solved = missions.filter(mi => P.missions[mi.id]).length;
+
+  s.innerHTML = prompt(`cd ~/course/module${num}`) + `
+    <div class="row" style="margin-bottom:6px">
+      <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-back>← modules</button>
+    </div>
+    <h1>${esc(mo.label)}</h1>
+    <p class="lead">${esc(mo.blurb)}</p>
+
+    <div class="hero-next">
+      <div class="ring" style="--p:${goalPct()}">
+        <span>${todayXP()}<small>/${P.goal} XP</small></span>
+      </div>
+      <div class="hero-text">
+        <div class="kicker">${next ? 'Next up' : 'All sets finished'}</div>
+        <h2>${next ? esc(next.lesson.title) + ' · set ' + (next.n + 1) : 'Keep it fresh'}</h2>
+        <p>${next ? `${next.items.length} new card${next.items.length === 1 ? '' : 's'}, then a quick check on just those.`
+                  : 'You have been through every set in this module. Drilling is what makes it stick now.'}</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" data-start>${next ? '▶ Start learning' : '⚡ Drill this module'}</button>
+          <button class="btn" data-path>See the full path</button>
+        </div>
+      </div>
     </div>
 
-    <div class="grid g2">
-      <button class="card" data-act="continue">
-        <h3>▶ ${nextChunk ? 'Continue learning' : 'Review everything'}</h3>
-        <p>${nextChunk ? `Next up: <b>${esc(nextChunk.lesson.title)}</b> — set ${nextChunk.n+1} of ${nextChunk.total}, ${nextChunk.items.length} new bites.`
-                       : 'You have been through every set. Time to drill.'}</p>
-        <div class="meta"><span>Learn mode</span><span>+40 XP per set</span></div>
-      </button>
-      <button class="card" data-act="drill">
-        <h3>⚡ Quick drill — 10 questions</h3>
-        <p>Adaptive mix of multiple choice and type-the-command, weighted towards whatever you keep getting wrong.</p>
-        <div class="meta"><span>Drill mode</span><span>+10 XP per correct</span></div>
-      </button>
-      <button class="card" data-act="review" ${due.length?'':'disabled style="opacity:.5"'}>
-        <h3>🔁 Review ${due.length} fading command${due.length===1?'':'s'}</h3>
-        <p>Only the ones your memory is about to drop. The fastest way to keep what you have already learned.</p>
-        <div class="meta"><span>Spaced repetition</span><span>${due.length ? 'ready' : 'clear'}</span></div>
-      </button>
-      <button class="card" data-act="terminal">
-        <h3>🖥 Terminal missions</h3>
-        <p>A working fake Linux box with a real filesystem. ${MISSIONS.length} missions — solve them by actually typing commands.</p>
-        <div class="meta"><span>${Object.keys(P.missions).length}/${MISSIONS.length} solved</span><span>+25 XP each</span></div>
-      </button>
+    <div class="strip">
+      <div><b>${done}</b><span>of ${sets.length} sets</span></div>
+      <div><b>${masteryPct(ids)}%</b><span>mastered</span></div>
+      <div><b>${P.streak}</b><span>day streak</span></div>
+      <div><b>${solved}</b><span>of ${missions.length} missions</span></div>
     </div>
 
-    ${READY_MODULES.map(mo => `<h2>${esc(mo.label)} — where you stand</h2>
+    <h2>Practise</h2>
+    <div class="grid g3">
+      <button class="card" data-act="drill"><h3>⚡ Quick drill</h3>
+        <p>10 questions, weighted to whatever you keep getting wrong.</p></button>
+      <button class="card" data-act="review" ${due.length ? '' : 'disabled style="opacity:.45"'}>
+        <h3>🔁 Review ${due.length}</h3>
+        <p>${due.length ? 'Commands that are starting to fade.' : 'Nothing fading yet.'}</p></button>
+      <button class="card" data-act="terminal"><h3>🖥️ Missions</h3>
+        <p>${solved}/${missions.length} solved in the practice terminal.</p></button>
+    </div>
+
+    <h2>Topics in this module</h2>
     <div class="grid g3">
       ${mo.cats.map(c => {
-        const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
-        const pct = masteryPct(ids);
+        const cids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
+        const pct = masteryPct(cids);
+        const cdone = sets.filter(x => x.cat === c.id && x.done).length;
+        const call  = sets.filter(x => x.cat === c.id).length;
         return `<button class="card" data-cat="${c.id}">
           <h3>${c.icon} ${esc(c.name)}</h3>
           <p>${esc(c.blurb)}</p>
-          <div class="meta"><span>${ids.length} bites</span><span>${pct}%</span></div>
+          <div class="meta"><span>${cdone}/${call} sets</span><span>${pct}%</span></div>
           <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
       }).join('')}
-    </div>`).join('')}
-    ${MODULES.filter(mo => !mo.ready).length ? `<p class="muted" style="font-size:12.5px;margin-top:18px">
-      Modules ${MODULES.filter(mo => !mo.ready).map(mo => mo.num).join(', ')} have not been added yet —
-      they will appear here as soon as their command lists land.</p>` : ''}`;
+    </div>`;
 
-  s.querySelector('[data-act="continue"]').onclick = () => nextChunk ? startChunk(nextChunk.lesson.id, nextChunk.n) : go('drill');
+  s.querySelector('[data-back]').onclick = () => go('home');
+  s.querySelector('[data-start]').onclick = () => next ? startChunk(next.lesson.id, next.n)
+    : startDrill(sample(ids, Math.min(20, ids.length)), { title: mo.label + ' drill' });
+  s.querySelector('[data-path]').onclick = () => go('learn', 'mod' + num);
   s.querySelector('[data-act="drill"]').onclick = () => startDrill(pickAdaptive(10));
   s.querySelector('[data-act="review"]').onclick = () => { if (due.length) startDrill(sample(due, Math.min(12, due.length))); };
   s.querySelector('[data-act="terminal"]').onclick = () => go('terminal');
@@ -293,13 +385,24 @@ function chunksOf(lesson) {
   }
   return out;
 }
-function countChunks() { return LESSONS.reduce((n,l) => n + chunksOf(l).length, 0); }
 function chunkKey(lessonId, n) { return `${lessonId}#${n}#${P.settings.bite}`; }
-function firstUnfinishedChunk() {
-  for (const lesson of LESSONS) {
+
+/* every set in a module, in teaching order, flattened for the path view */
+function allSets(num) {
+  const out = [];
+  LESSONS.filter(l => l.mod === num).forEach(lesson => {
     const cs = chunksOf(lesson);
-    for (let n = 0; n < cs.length; n++)
-      if (!P.chunks[chunkKey(lesson.id, n)]) return { lesson, n, total: cs.length, items: cs[n] };
+    cs.forEach((items, n) => out.push({
+      lesson, n, total: cs.length, items, cat: lesson.cat,
+      done: setDone(items) || !!P.chunks[chunkKey(lesson.id, n)]
+    }));
+  });
+  return out;
+}
+function firstUnfinishedChunk() {
+  for (const mo of READY_MODULES) {
+    const nx = allSets(mo.num).find(x => !x.done);
+    if (nx) return nx;
   }
   return null;
 }
@@ -323,96 +426,90 @@ function pickAdaptive(n) {
 }
 
 /* ---------------- LEARN ---------------- */
+/* The path: every set in the module as a numbered step. One step at a
+   time, the next one always obvious. */
 function renderLearn(s) {
   if (A.quiz) return renderQuestion(s);
   if (A.learn) return renderChunkCard(s);
-  if (A.view && CURRICULUM.some(c => c.id === A.view)) return renderLessonList(s, A.view);
-  if (A.view && /^mod\d+$/.test(A.view)) return renderTopicList(s, +A.view.slice(3));
+  if (A.view && CURRICULUM.some(c => c.id === A.view)) return renderPath(s, CURRICULUM.find(c => c.id === A.view).mod, A.view);
+  if (A.view && /^mod\d+$/.test(A.view)) return renderPath(s, +A.view.slice(3));
+  if (READY_MODULES.length === 1) return renderPath(s, READY_MODULES[0].num);
   return renderModuleList(s);
 }
 
 function renderModuleList(s) {
   s.innerHTML = prompt('ls /usr/share/curriculum') + `
     <h1>Learn — pick a module</h1>
-    <p class="lead">The course runs over ${MODULES.length} modules. Module 1 is loaded;
-      the rest arrive as they are handed out.</p>
-    <div class="grid g2">
-      ${MODULES.map(mo => {
-        if (!mo.ready) return `<button class="card static locked" disabled>
-            <h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p>
-            <div class="meta"><span>not added yet</span><span>🔒</span></div></button>`;
-        const ids = mo.items.map(i => i.id);
-        const allChunks = mo.cats.reduce((n,c) => n + c.lessons.reduce((k,l) => k + chunksOf(l).length, 0), 0);
-        const doneChunks = mo.cats.reduce((n,c) => n + c.lessons.reduce((k,l) =>
-          k + chunksOf(l).filter((_,i) => P.chunks[chunkKey(l.id,i)]).length, 0), 0);
-        return `<button class="card" data-mod="${mo.num}">
-            <h3>${esc(mo.label)}</h3>
-            <p>${esc(mo.blurb)}</p>
-            <div class="meta"><span>${mo.cats.length} topics · ${ids.length} bites</span>
-              <span>${doneChunks}/${allChunks} sets done</span></div>
-            <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
-          </button>`;
-      }).join('')}
+    <p class="lead">The course runs over ${MODULES.length} modules.</p>
+    <div class="modlist">
+      ${MODULES.map(mo => mo.ready
+        ? `<button class="modrow" data-mod="${mo.num}"><div class="num">${mo.num}</div>
+             <div class="body"><h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p></div><div class="go">▶</div></button>`
+        : `<div class="modrow locked"><div class="num">${mo.num}</div>
+             <div class="body"><h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p></div><div class="go">🔒</div></div>`).join('')}
     </div>`;
   s.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => go('learn', 'mod' + b.dataset.mod));
 }
 
-function renderTopicList(s, num) {
+function renderPath(s, num, focusCat) {
   const mo = MODULE_OF[num];
-  s.innerHTML = prompt(`cd module${num} && ls`) + `
-    <h1>${esc(mo.label)}</h1>
-    <p class="lead">${esc(mo.blurb)}<br>
-      Every topic is split into short lessons, and every lesson into sets of ${P.settings.bite} bites.
-      One idea per card, then a quick check on just those cards. Change the set size with the <b>bite</b> chip at the top right.</p>
-    <div class="grid g2">
-      ${mo.cats.map(c => {
-        const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
-        const lessons = c.lessons.length;
-        const doneChunks = c.lessons.reduce((n,l) => n + chunksOf(l).filter((_,i) => P.chunks[chunkKey(l.id,i)]).length, 0);
-        const allChunks = c.lessons.reduce((n,l) => n + chunksOf(l).length, 0);
-        return `<button class="card" data-cat="${c.id}">
-            <h3>${c.icon} ${esc(c.name)}</h3>
-            <p>${esc(c.blurb)}</p>
-            <div class="meta"><span>${lessons} lesson${lessons>1?'s':''} · ${ids.length} bites</span>
-              <span>${doneChunks}/${allChunks} sets done</span></div>
-            <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
-          </button>`;
-      }).join('')}
-    </div>
-    <div class="row" style="margin-top:16px"><button class="btn" data-back>← all modules</button></div>`;
-  s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => go('learn', b.dataset.cat));
-  s.querySelector('[data-back]').onclick = () => go('learn');
-}
+  const sets = allSets(num);
+  const nextIdx = sets.findIndex(x => !x.done);
+  const done = sets.filter(x => x.done).length;
 
-function renderLessonList(s, catId) {
-  const cat = CURRICULUM.find(c => c.id === catId);
-  s.innerHTML = prompt(`cd ${catId} && ls -l`) + `
-    <h1>${cat.icon} ${esc(cat.name)}</h1>
-    <p class="lead">${esc(cat.blurb)}</p>
-    <p class="muted" style="font-size:12px;margin:-12px 0 16px">${esc(MODULE_OF[cat.mod].label)}</p>
-    ${cat.lessons.map(l => {
-      const cs = chunksOf(l);
-      const ids = l.items.map(i => i.id);
-      return `<div class="card static" style="margin-bottom:12px">
-        <h3>${esc(l.title)}</h3>
-        <p>${l.brief}</p>
-        <div class="tagrow">${cs.map((c,i) => {
-          const done = P.chunks[chunkKey(l.id,i)];
-          return `<button class="btn ${done?'':'primary'}" style="padding:6px 12px;font-size:12px" data-l="${l.id}" data-n="${i}">
-            ${done ? '✓ ' : '▶ '}Set ${i+1} <span class="muted">(${c.length})</span></button>`;
-        }).join('')}
-        <button class="btn ghost" style="padding:6px 12px;font-size:12px" data-quiz="${l.id}">Quiz this lesson</button></div>
-        <div class="meta"><span>${l.items.length} bites</span><span>${masteryPct(ids)}% mastered</span></div>
-        <div class="bar" style="margin-top:6px"><i style="width:${masteryPct(ids)}%"></i></div>
-      </div>`;
-    }).join('')}
-    <button class="btn" data-back>← ${esc(MODULE_OF[cat.mod].label)}</button>`;
-  s.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startChunk(b.dataset.l, +b.dataset.n));
-  s.querySelectorAll('[data-quiz]').forEach(b => b.onclick = () => {
-    const l = LESSONS.find(x => x.id === b.dataset.quiz);
-    startDrill(shuffle(l.items.map(i => i.id)));
+  /* group the steps by topic so the path reads as chapters */
+  const groups = [];
+  sets.forEach((set, i) => {
+    const g = groups[groups.length-1];
+    if (!g || g.cat !== set.cat) groups.push({ cat:set.cat, catObj:CURRICULUM.find(c => c.id === set.cat), steps:[{ set, i }] });
+    else g.steps.push({ set, i });
   });
-  s.querySelector('[data-back]').onclick = () => go('learn', 'mod' + cat.mod);
+  const curGroup = nextIdx === -1 ? groups.length - 1
+                 : groups.findIndex(g => g.steps.some(x => x.i === nextIdx));
+
+  s.innerHTML = prompt(`cat ~/course/module${num}/path`) + `
+    <h1>Your path <span class="muted" style="font-size:13px">· ${esc(mo.label)}</span></h1>
+    <p class="lead">${sets.length} sets of ${P.settings.bite} cards. Finish one, take the quick check, move on.
+      ${P.settings.freeroam ? 'Free roam is on — jump anywhere you like.' : 'The next step is always the highlighted one.'}</p>
+    <div class="pathtop">
+      <div class="bar" style="flex:1"><i style="width:${sets.length ? done/sets.length*100 : 0}%"></i></div>
+      <span class="muted" style="font-size:12px;white-space:nowrap">${done}/${sets.length} done</span>
+    </div>
+
+    ${groups.map((g, gi) => {
+      const gdone = g.steps.filter(x => x.set.done).length;
+      const isFocus = focusCat === g.cat;
+      /* whole topics unlock in turn — inside your current topic you can
+         move around freely, which beats a wall of padlocks */
+      const gLocked = !P.settings.freeroam && nextIdx !== -1 && gi > curGroup;
+      return `<section class="chapter${isFocus ? ' focus' : ''}${gLocked ? ' dim' : ''}${gi === curGroup ? ' current' : ''}" id="cat-${g.cat}">
+        <header><span class="ic">${gLocked ? '🔒' : g.catObj.icon}</span>
+          <div><h3>${esc(g.catObj.name)}</h3><p>${gLocked ? 'Unlocks when you finish the topic above.' : esc(g.catObj.blurb)}</p></div>
+          <span class="cnt">${gdone}/${g.steps.length}</span></header>
+        <div class="steps">
+          ${g.steps.map(({set, i}) => {
+            const state = set.done ? 'done' : i === nextIdx ? 'now' : gLocked ? 'locked' : 'open';
+            const preview = [...new Set(set.items.map(it => it.cmd))].join('  ');
+            return `<button class="step ${state}" data-l="${set.lesson.id}" data-n="${set.n}" ${gLocked ? 'disabled' : ''}
+                      title="${esc(set.lesson.title)} — set ${set.n+1} of ${set.total}">
+                <span class="bub">${set.done ? '✓' : (i + 1)}</span>
+                <span class="cap">${esc(preview)}</span>
+              </button>`;
+          }).join('')}
+        </div>
+      </section>`;
+    }).join('')}
+
+    <div class="row" style="margin-top:20px">
+      ${nextIdx >= 0 ? '<button class="btn primary" data-next-step>▶ Continue where I left off</button>' : ''}
+      <button class="btn ghost" data-back>← module page</button>
+    </div>`;
+
+  s.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startChunk(b.dataset.l, +b.dataset.n));
+  const nb = s.querySelector('[data-next-step]');
+  if (nb) nb.onclick = () => startChunk(sets[nextIdx].lesson.id, sets[nextIdx].n);
+  s.querySelector('[data-back]').onclick = () => go('home', 'mod' + num);
+  if (focusCat) { const t = el('cat-' + focusCat); if (t) t.scrollIntoView({ block:'start', behavior:'smooth' }); }
 }
 
 function startChunk(lessonId, n) {
@@ -427,37 +524,41 @@ function renderChunkCard(s) {
   const L = A.learn;
   const it = L.items[L.i];
   const box = m(it.id).b;
-  s.innerHTML = prompt(`man ${it.cmd.split(' ')[0]}`) + `
-    <h1>${esc(L.lesson.title)} <span class="muted" style="font-size:13px">· set ${L.n+1}/${L.total} · card ${L.i+1}/${L.items.length}</span></h1>
-    <div class="lessonbrief">${L.lesson.brief}</div>
-    <div class="chunkbar">${L.items.map((_,i) => `<i class="${i<L.i?'done':i===L.i?'now':''}"></i>`).join('')}</div>
+  const last = L.i === L.items.length - 1;
+  s.innerHTML = `
+    <div class="cardtop">
+      <button class="x" data-exit title="Leave this set">✕</button>
+      <div class="chunkbar">${L.items.map((_,i) => `<i class="${i<L.i?'done':i===L.i?'now':''}"></i>`).join('')}</div>
+      <span class="muted" style="font-size:12px;white-space:nowrap">${L.i+1}/${L.items.length}</span>
+    </div>
+    <div class="kicker">${esc(L.lesson.title)} · set ${L.n+1} of ${L.total}${box >= 4 ? ' · ★ you know this one' : ''}</div>
+
     <div class="flash">
       <p class="big">${esc(it.cmd)}</p>
-      <p class="what">It ${esc(it.what)}.</p>
-      ${it.ex ? `<div class="demo"><span class="p">student@fedora:~$</span> ${esc(it.ex)}${
+      <p class="what">${esc(cap(it.what))}</p>
+      ${it.ex ? `<div class="demo"><span class="p">$</span> ${esc(it.ex)}${
           it.out ? '\n' + `<span class="o">${esc(it.out)}</span>` : ''}</div>` : ''}
-      ${it.note ? `<div class="chunknote"><b>Remember:</b> ${esc(it.note)}</div>` : ''}
+      ${it.note ? `<div class="chunknote"><b>Remember</b> ${esc(it.note)}</div>` : ''}
     </div>
+
     <div class="row" style="margin-top:16px">
-      <button class="btn" data-prev ${L.i===0?'disabled':''}>← back</button>
-      <span class="muted" style="font-size:12px">${box >= 4 ? '★ you have this one down' : box > 0 ? '· seen before' : '· new to you'}</span>
+      <button class="btn" data-prev ${L.i===0?'disabled':''}>←</button>
       <span class="spacer"></span>
-      <span class="muted" style="font-size:12px">Enter</span>
-      <button class="btn primary" data-next>${L.i === L.items.length-1 ? 'Quick check →' : 'Next bite →'}</button>
+      <button class="btn primary big" data-next>${last ? 'Quick check →' : 'Got it →'}</button>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn ghost" style="font-size:12px;padding:6px 12px" data-exit>← leave lesson</button>
-    </div>`;
+    <p class="muted center" style="font-size:11.5px;margin-top:10px">press <span class="kbd">Enter</span> to keep going</p>`;
   s.querySelector('[data-next]').onclick = advanceChunk;
   s.querySelector('[data-prev]').onclick = () => { if (L.i>0) { L.i--; render(); } };
-  s.querySelector('[data-exit]').onclick = () => go('learn', L.lesson.cat);
+  s.querySelector('[data-exit]').onclick = () => go('learn', 'mod' + (L.lesson.mod || 1));
 }
+function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+
 function advanceChunk() {
   const L = A.learn;
   if (L.i < L.items.length - 1) { L.i++; render(); return; }
   // finished the cards -> quick check on exactly these items
   const ids = shuffle(L.items.map(i => i.id));
-  const ctx = { lessonId: L.lesson.id, n: L.n, catId: L.lesson.cat };
+  const ctx = { lessonId: L.lesson.id, n: L.n, catId: L.lesson.cat, mod: L.lesson.mod, items: L.items };
   A.learn = null;
   startDrill(ids, { title:`Quick check — ${L.lesson.title} (set ${L.n+1})`, chunk: ctx, first:true });
 }
@@ -509,6 +610,7 @@ function renderDrill(s) {
 
 function startDrill(ids, opt = {}) {
   A.tab = opt.chunk ? 'learn' : A.tab === 'learn' ? 'learn' : 'drill';
+  A.combo = 0;
   A.quiz = { ids, i:0, right:0, wrong:[], answered:false, opt, title: opt.title || 'Drill' };
   render();
 }
@@ -520,17 +622,17 @@ function renderQuestion(s) {
   const q = Q.q;
   const pct = Math.round(Q.i / Q.ids.length * 100);
 
-  s.innerHTML = prompt(`quiz --topic ${item.cat}`) + `
-    <h1>${esc(Q.title)} <span class="muted" style="font-size:13px">· ${Q.i+1}/${Q.ids.length} · ${Q.right} correct</span></h1>
-    <div class="bar" style="margin:0 0 18px"><i style="width:${pct}%"></i></div>
+  s.innerHTML = `
+    <div class="cardtop">
+      <button class="x" data-quit title="Leave this round">✕</button>
+      <div class="bar" style="flex:1"><i style="width:${pct}%"></i></div>
+      <span class="combo ${A.combo >= 3 ? 'hot' : ''}">${A.combo >= 3 ? '🔥 ' + A.combo + ' in a row' : Q.i + 1 + '/' + Q.ids.length}</span>
+    </div>
+    <div class="kicker">${esc(Q.title)}</div>
     <p class="qprompt">${q.prompt}</p>
     <div id="qbody"></div>
     <div id="qverdict"></div>
-    <div class="row" style="margin-top:6px">
-      <button class="btn ghost" style="font-size:12px;padding:6px 12px" data-quit>← give up on this round</button>
-      <span class="spacer"></span>
-      <span class="muted" style="font-size:12px">${q.type==='type' ? 'Enter to answer' : 'keys 1–4'}</span>
-    </div>`;
+    <p class="muted center" style="font-size:11.5px;margin-top:14px">${q.type==='type' ? 'press Enter to answer' : 'or press keys 1–4'}</p>`;
 
   const body = el('qbody');
   if (q.type === 'type') {
@@ -554,7 +656,10 @@ function renderQuestion(s) {
       answer(o.right, o.label);
     });
   }
-  s.querySelector('[data-quit]').onclick = () => { A.quiz = null; render(); };
+  s.querySelector('[data-quit]').onclick = () => {
+    const back = Q.opt.chunk ? ['learn', 'mod' + Q.opt.chunk.mod] : [A.tab === 'learn' ? 'learn' : 'drill'];
+    A.quiz = null; go(...back);
+  };
 }
 
 function answer(ok, given) {
@@ -565,8 +670,11 @@ function answer(ok, given) {
   scoreAnswer(item.id, ok);
   if (ok) Q.right++; else Q.wrong.push(item.id);
 
+  const cheers = ['Nice.','Correct.','Got it.','Yes.','That is the one.','Spot on.'];
+  const head = ok ? `✓ ${cheers[Math.floor(Math.random()*cheers.length)]}${A.combo >= 3 ? `  🔥 ${A.combo} in a row` : ''}`
+                  : '✗ Not this time';
   el('qverdict').innerHTML = `<div class="verdict ${ok?'ok':'no'}">
-      <h4>${ok ? '✓ Correct — +10 XP' : '✗ Not quite'}</h4>
+      <h4>${head}</h4>
       <div><span class="cmdtag">${esc(item.cmd)}</span> — it ${esc(item.what)}.</div>
       ${!ok && given ? `<span class="note">You said: <span class="mono">${esc(given)}</span></span>` : ''}
       ${item.ex ? `<span class="note">Example: <span class="mono">${esc(item.ex)}</span></span>` : ''}
@@ -581,35 +689,46 @@ function renderQuizResult(s) {
   const Q = A.quiz;
   const pct = Math.round(Q.right / Q.ids.length * 100);
   let bonus = 0;
-  if (Q.opt.chunk) { P.chunks[chunkKey(Q.opt.chunk.lessonId, Q.opt.chunk.n)] = true; bonus = 40; awardXP(40); }
-  else if (pct === 100) { bonus = 25; awardXP(25); }
+  if (Q.opt.chunk) {
+    P.chunks[chunkKey(Q.opt.chunk.lessonId, Q.opt.chunk.n)] = true;
+    markLearned(Q.opt.chunk.items);
+    bonus = 40; awardXP(40);
+  } else if (pct === 100) { bonus = 25; awardXP(25); }
+  if (pct === 100 && Q.ids.length >= 3) P.perfects++;
   save();
-  const mood = pct === 100 ? '🏆' : pct >= 80 ? '✅' : pct >= 50 ? '⚠️' : '📚';
-  const msg = pct === 100 ? 'Perfect run. That is mastery.'
-            : pct >= 80 ? 'Strong. The misses are already queued for review.'
-            : pct >= 50 ? 'Getting there — the ones you missed will come round again sooner.'
-            : 'That is what practice is for. Go back through the cards, then try again.';
+  const fresh = checkBadges();
+  const mood = pct === 100 ? '🏆' : pct >= 80 ? '✅' : pct >= 50 ? '👍' : '📚';
+  const msg = pct === 100 ? 'Perfect run. Those are yours now.'
+            : pct >= 80 ? 'Strong. The couple you missed are already queued to come back.'
+            : pct >= 50 ? 'Good going — the ones you missed will come round again sooner.'
+            : 'Totally normal for a first pass. The misses come back until they stick.';
   s.innerHTML = prompt('echo $?') + `
     <div class="center" style="padding:10px 0 4px"><div class="big-emoji">${mood}</div>
       <h1 style="margin-top:10px">${Q.right} / ${Q.ids.length} — ${pct}%</h1>
-      <p class="lead">${msg}${bonus ? ` <b style="color:var(--accent)">+${bonus} bonus XP</b>` : ''}</p></div>
+      <p class="lead">${msg}${bonus ? ` <b style="color:var(--accent)">+${bonus} bonus XP</b>` : ''}</p>
+      ${fresh.length ? `<p class="lead">${fresh.map(b => `<span class="badgechip">${b.icon} ${esc(b.name)}</span>`).join(' ')}</p>` : ''}
+      <div class="goalline"><div class="bar" style="flex:1"><i style="width:${goalPct()}%"></i></div>
+        <span class="muted" style="font-size:12px;white-space:nowrap">${todayXP()}/${P.goal} XP today</span></div></div>
     ${Q.wrong.length ? `<h2>Worth another look</h2>
       <div class="reflist">${[...new Set(Q.wrong)].map(id => { const i = ITEM_BY_ID[id];
         return `<div class="refrow"><div class="c">${esc(i.cmd)}</div>
           <div class="w">It ${esc(i.what)}.${i.note ? `<span class="n">${esc(i.note)}</span>` : ''}</div></div>`;
       }).join('')}</div>` : ''}
     <div class="row" style="margin-top:18px">
-      <button class="btn primary" data-again>Drill again</button>
+      ${Q.opt.chunk ? '<button class="btn primary" data-nextset>▶ Next set</button>'
+                    : '<button class="btn primary" data-again>Drill again</button>'}
       ${Q.wrong.length ? '<button class="btn" data-fix>Retry just the misses</button>' : ''}
-      ${Q.opt.chunk ? '<button class="btn" data-nextset>Next set →</button>' : ''}
+      ${Q.opt.chunk ? '<button class="btn" data-path>Back to the path</button>' : ''}
       <button class="btn ghost" data-home>← home</button>
     </div>`;
-  s.querySelector('[data-again]').onclick = () => startDrill(pickAdaptive(10));
+  const ag = s.querySelector('[data-again]'); if (ag) ag.onclick = () => startDrill(pickAdaptive(10));
+  const pb = s.querySelector('[data-path]'); if (pb) pb.onclick = () => go('learn', 'mod' + Q.opt.chunk.mod);
   const fix = s.querySelector('[data-fix]'); if (fix) fix.onclick = () => startDrill([...new Set(Q.wrong)]);
   const ns = s.querySelector('[data-nextset]');
   if (ns) ns.onclick = () => {
-    const nx = firstUnfinishedChunk();
-    if (nx) startChunk(nx.lesson.id, nx.n); else go('learn', Q.opt.chunk.catId);
+    const mod = Q.opt.chunk.mod;
+    const nx = allSets(mod).find(x => !x.done) || firstUnfinishedChunk();
+    if (nx) startChunk(nx.lesson.id, nx.n); else go('learn', 'mod' + mod);
   };
   s.querySelector('[data-home]').onclick = () => go('home');
   A.quiz = null;
@@ -698,7 +817,7 @@ function runLine(line) {
       P.missions[A.mission.id] = true;
       const it = ITEM_BY_ID[A.mission.teach];
       if (it) scoreAnswer(it.id, true);
-      awardXP(25); save();
+      awardXP(25); save(); checkBadges();
       pushTerm({ t:'note', s:`✓ Mission solved  (+25 XP)${it ? '  —  ' + it.cmd + ': it ' + it.what + '.' : ''}` });
       A.missTries = 0;
       const nx = nextMission(A.mission.id);
@@ -822,6 +941,13 @@ function renderProgress(s) {
       <div class="stat"><div class="k">Missions</div><div class="v">${Object.keys(P.missions).length}</div><div class="muted" style="font-size:12px">of ${MISSIONS.length}</div></div>
     </div>
 
+    <h2>Badges <span class="muted" style="font-size:12.5px">· ${Object.keys(P.badges).length}/${BADGES.length}</span></h2>
+    <div class="badges">
+      ${BADGES.map(b => `<div class="badge ${P.badges[b.id] ? 'got' : ''}" title="${esc(b.desc)}">
+        <span class="bi">${P.badges[b.id] ? b.icon : '🔒'}</span>
+        <b>${esc(b.name)}</b><span>${esc(b.desc)}</span></div>`).join('')}
+    </div>
+
     <h2>Last 35 days</h2>
     <div class="heat">${days.map(d => { const xp = P.days[d]||0;
       return `<i class="${xp>=150?'l3':xp>=60?'l2':xp>0?'l1':''}" title="${d}: ${xp} XP"></i>`; }).join('')}</div>
@@ -877,8 +1003,14 @@ function openSettings() {
     <h3 style="font-size:13px;color:var(--dim);margin:14px 0 6px">Theme</h3>
     <div class="row">${THEMES.map(([id,n]) => `<button class="chip ${P.settings.theme===id?'on':''}" data-theme="${id}">${n}</button>`).join('')}</div>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Bite size — how many cards per learning set</h3>
-    <div class="row">${[3,5,8].map(n => `<button class="chip ${P.settings.bite===n?'on':''}" data-bite="${n}">${n} cards</button>`).join('')}</div>
-    <p class="muted" style="font-size:12px;margin-top:6px">Smaller sets mean more frequent quick checks. 3 is good for brand-new topics.</p>
+    <div class="row">${[2,3,5,8].map(n => `<button class="chip ${P.settings.bite===n?'on':''}" data-bite="${n}">${n} cards</button>`).join('')}</div>
+    <p class="muted" style="font-size:12px;margin-top:6px">Smaller sets mean more frequent quick checks. 2 or 3 is right when a topic is brand new.</p>
+    <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Daily goal</h3>
+    <div class="row">${[50,100,200].map(n => `<button class="chip ${P.goal===n?'on':''}" data-goal="${n}">${n} XP</button>`).join('')}</div>
+    <p class="muted" style="font-size:12px;margin-top:6px">One finished set is roughly 70 XP, so 100 XP is about a set and a half a day.</p>
+    <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Path</h3>
+    <div class="row"><button class="chip ${P.settings.freeroam?'on':''}" data-roam>Free roam: ${P.settings.freeroam?'on':'off'}</button></div>
+    <p class="muted" style="font-size:12px;margin-top:6px">Off keeps you on the next step. On unlocks every set so you can jump around.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Display</h3>
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Keyboard</h3>
@@ -893,6 +1025,8 @@ function openSettings() {
   d.onclick = e => { if (e.target === d) d.remove(); };
   d.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { P.settings.theme = b.dataset.theme; save(); applySettings(); d.remove(); openSettings(); });
   d.querySelectorAll('[data-bite]').forEach(b => b.onclick = () => { P.settings.bite = +b.dataset.bite; save(); d.remove(); openSettings(); render(); });
+  d.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { P.goal = +b.dataset.goal; save(); d.remove(); openSettings(); render(); });
+  d.querySelector('[data-roam]').onclick = () => { P.settings.freeroam = !P.settings.freeroam; save(); d.remove(); openSettings(); render(); };
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
   d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
@@ -958,7 +1092,7 @@ el('verstamp').textContent = 'v' + VERSION;
 el('copyyear').textContent = new Date().getFullYear();
 el('copyholder').textContent = COPYRIGHT_HOLDER;
 el('bitebtn').onclick = () => {
-  const order = [3,5,8]; P.settings.bite = order[(order.indexOf(P.settings.bite)+1) % order.length];
+  const order = [2,3,5,8]; P.settings.bite = order[(order.indexOf(P.settings.bite)+1) % order.length];
   save(); toast(`Bite size: ${P.settings.bite} cards per set`); render();
 };
 el('themebtn').onclick = () => {

@@ -12,6 +12,36 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.2] — 2026-08-20
+
+Reshaped around learning it from scratch: a calmer home page, and the course
+laid out as a path of very short steps.
+
+### Changed
+- **Home page is just the module list now.** Everything that used to crowd it —
+  progress, next-up, practice options, the topic grid — moved to the module's
+  own page, one click in.
+- **Default set size is 3 cards** (was 5), and **2** is now an option.
+- **Set completion is tracked per card** rather than per set, so changing the
+  bite size no longer wipes the sets you have already finished.
+- Learning cards stripped back: one command, one plain sentence, one example,
+  one memory hook. No lesson blurb repeated on every card.
+
+### Added
+- **The path** — every set in a module is a numbered step, grouped by topic,
+  with the next one highlighted and pulsing. Finished steps fill in with a tick.
+- **Topics unlock in turn**, so there is always one obvious next thing. Inside
+  your current topic you can move around freely, and Settings has a
+  **free roam** switch that unlocks everything.
+- **15 badges** — first set, 25 and 100 commands learned, answer combos, a
+  perfect quick check, streaks, missions, escaping Vim, module mastery.
+- **Combo bonus** — consecutive correct answers are worth extra XP, with a
+  running "🔥 N in a row" counter.
+- **Daily XP goal** (50 / 100 / 200) with a progress ring on the module page and
+  a counter in the status bar.
+
+---
+
 ## [0.1] — 2026-08-20
 
 First release. Covers **Module 1 — Linux Fundamentals** in full.

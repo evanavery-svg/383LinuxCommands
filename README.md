@@ -1,6 +1,6 @@
 # sudo LEARN — a Linux command trainer
 
-**v0.1** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.2** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -15,13 +15,23 @@ in-app from the **changelog** link in the page footer.
 
 ## What is in it
 
-**Learn** — every topic is split into short lessons, and every lesson into
-*sets* of bite-sized cards. One idea per card: the command, what it does in plain
-English, a worked example with realistic output, and a "Remember" line that gives
-you a hook for it (`-h` only matters with `-l`, because only long format prints
-sizes). Finish a set and you get a quick check on exactly those cards — nothing
-you have not just seen. Set size is adjustable (3 / 5 / 8 cards) with the **bite**
-chip in the title bar; drop it to 3 for a topic that is brand new to you.
+**Home** is deliberately bare: just the list of modules. Click one and its own
+page opens with everything else — what is next, your progress, practice options
+and the topic grid.
+
+**The path** — a module is laid out as a line of numbered steps, grouped by
+topic. Each step is one short set of cards. The next step is highlighted and
+pulsing, finished ones fill in with a tick, and topics unlock in turn so there is
+always exactly one obvious thing to do. (Settings has a **free roam** switch if
+you would rather jump around.)
+
+**Learn** — one idea per card: the command, one plain sentence saying what it
+does, a worked example with realistic output, and a "Remember" hook (`-h` only
+matters with `-l`, because only long format prints sizes). Finish a set and you
+get a quick check on exactly those cards — nothing you have not just seen. Set
+size is adjustable (2 / 3 / 5 / 8 cards, default 3) with the **bite** chip in the
+title bar. Completion is tracked per card, so changing the size never loses your
+place.
 
 **Drill** — adaptive questions. A command you have never met arrives as multiple
 choice; once you are getting it right, the game stops offering options and makes
@@ -44,8 +54,12 @@ until you run `reset`.
 example, each showing your mastery bar.
 
 **Progress** — XP, rank (Guest → root), day streak, accuracy, a 35-day activity
-heatmap, mastery per topic, and your current weakest commands with a one-click
-drill for them. Export/import your save as JSON.
+heatmap, mastery by module and by topic, and your current weakest commands with a
+one-click drill for them. Export/import your save as JSON.
+
+**Keeping you coming back** — 15 badges to unlock, a combo bonus for correct
+answers in a row, and a daily XP goal (50 / 100 / 200) shown as a ring on the
+module page.
 
 ## Themes
 
@@ -59,9 +73,9 @@ tabs, prompt lines, and an htop-style status bar.
 | Key | Does |
 |---|---|
 | `1`–`6` | switch tabs |
+| `Esc` | step back out (card → path → module → home) |
 | `1`–`4` | pick a multiple-choice answer |
 | `Enter` | next card / next question |
-| `Esc` | back out of a lesson, quiz or modal |
 | `↑` `↓` | command history in the terminal |
 | `Ctrl-L` | clear the terminal |
 

@@ -20,12 +20,22 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.1';
+const VERSION = '0.2';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.2', date:'2026-08-20', title:'Bite-sized path, calmer home page',
+    notes:[
+      'Home page is now just the module list. All the detail moved to the module\u2019s own page, one click in.',
+      'New Learn path: every set is a numbered step grouped by topic, with the next one always highlighted.',
+      'Topics unlock in turn, so there is always one obvious thing to do next (Settings has a free-roam switch).',
+      'Default set size dropped to 3 cards, and 2 is now an option.',
+      'Set completion is tracked per card, so changing the bite size no longer wipes your ticks.',
+      '15 badges to unlock, a combo bonus for correct answers in a row, and a daily XP goal ring.',
+      'Learning cards stripped back to one command, one plain sentence, one example, one memory hook.'
+    ] },
   { version:'0.1', date:'2026-08-20', title:'First release — Module 1',
     notes:[
       'Module 1 in full: 9 topics, 32 lessons, 221 commands, flags and keystrokes.',
