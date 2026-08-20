@@ -10,6 +10,7 @@ const DEFAULTS = {
   xp: 0, days: {}, streak: 0, lastDay: null,
   mastery: {},              // id -> {b:box 0..5, c:correct, w:wrong, ts:lastSeen}
   learned: {},              // id -> true once its set has been finished
+  quick: {},                // id -> best quiz result so far (true = got it right)
   missions: {},             // id -> true
   badges: {},               // id -> date unlocked
   chunks: {},               // legacy set-completion marks, kept so old saves still read
@@ -54,11 +55,13 @@ function scoreAnswer(id, ok) {
   const s = m(id);
   s.ts = Date.now();
   if (ok) {
+    P.quick[id] = true;                       // best-ever result, so scores only climb
     s.c++; s.b = Math.min(5, s.b + 1);
     A.combo++;
     if (A.combo > P.bestCombo) P.bestCombo = A.combo;
     awardXP(10 + Math.min(10, Math.max(0, A.combo - 2) * 2));   // combo bonus, capped
   } else {
+    if (P.quick[id] === undefined) P.quick[id] = false;
     s.w++; s.b = Math.max(0, s.b - 1); A.combo = 0; awardXP(2);
   }
   save();
@@ -68,6 +71,14 @@ function scoreAnswer(id, ok) {
    Tracking per item (not per set) means changing the bite size does not
    wipe your ticks. */
 function setDone(items) { return items.every(i => P.learned[i.id]); }
+/* A set's score is the share of its cards you have answered right — best
+   result kept, so retrying a set can only push it up. Returns null for sets
+   finished before scores were recorded, which still just show a tick. */
+function setPct(items) {
+  const scored = items.filter(i => P.quick[i.id] !== undefined);
+  if (!scored.length) return null;
+  return Math.round(scored.filter(i => P.quick[i.id]).length / items.length * 100);
+}
 function markLearned(items) { items.forEach(i => { P.learned[i.id] = true; }); save(); }
 function learnedCount() { return Object.keys(P.learned).length; }
 function missionCount() { return Object.keys(P.missions).length; }
@@ -394,7 +405,8 @@ function allSets(num) {
     const cs = chunksOf(lesson);
     cs.forEach((items, n) => out.push({
       lesson, n, total: cs.length, items, cat: lesson.cat,
-      done: setDone(items) || !!P.chunks[chunkKey(lesson.id, n)]
+      done: setDone(items) || !!P.chunks[chunkKey(lesson.id, n)],
+      pct: setPct(items)
     }));
   });
   return out;
@@ -488,11 +500,14 @@ function renderPath(s, num, focusCat) {
           <span class="cnt">${gdone}/${g.steps.length}</span></header>
         <div class="steps">
           ${g.steps.map(({set, i}) => {
-            const state = set.done ? 'done' : i === nextIdx ? 'now' : gLocked ? 'locked' : 'open';
+            const scored = set.done && set.pct !== null;
+            const grade = !scored ? '' : set.pct === 100 ? ' full' : set.pct >= 50 ? ' part' : ' low';
+            const state = (set.done ? 'done' : i === nextIdx ? 'now' : gLocked ? 'locked' : 'open') + grade;
             const preview = [...new Set(set.items.map(it => it.cmd))].join('  ');
+            const label = scored ? `${set.pct}<i>%</i>` : set.done ? '✓' : (i + 1);
             return `<button class="step ${state}" data-l="${set.lesson.id}" data-n="${set.n}" ${gLocked ? 'disabled' : ''}
-                      title="${esc(set.lesson.title)} — set ${set.n+1} of ${set.total}">
-                <span class="bub">${set.done ? '✓' : (i + 1)}</span>
+                      title="${esc(set.lesson.title)} — set ${set.n+1} of ${set.total}${scored ? ` · best score ${set.pct}%` : ''}">
+                <span class="bub">${label}</span>
                 <span class="cap">${esc(preview)}</span>
               </button>`;
           }).join('')}
@@ -758,6 +773,8 @@ function renderQuizResult(s) {
       <h1 style="margin-top:10px">${Q.right} / ${Q.ids.length} — ${pct}%</h1>
       <p class="lead">${msg}${bonus ? ` <b style="color:var(--accent)">+${bonus} bonus XP</b>` : ''}</p>
       ${fresh.length ? `<p class="lead">${fresh.map(b => `<span class="badgechip">${b.icon} ${esc(b.name)}</span>`).join(' ')}</p>` : ''}
+      ${Q.opt.chunk && setPct(Q.opt.chunk.items) !== 100
+        ? `<p class="lead">This set shows <b>${setPct(Q.opt.chunk.items)}%</b> on your path. Retry it to push it to 100%.</p>` : ''}
       <div class="goalline"><div class="bar" style="flex:1"><i style="width:${goalPct()}%"></i></div>
         <span class="muted" style="font-size:12px;white-space:nowrap">${todayXP()}/${P.goal} XP today</span></div></div>
     ${Q.wrong.length ? `<h2>Worth another look</h2>
@@ -1040,11 +1057,7 @@ function renderProgress(s) {
     try { P = { ...structuredClone(DEFAULTS), ...JSON.parse(t) }; save(); toast('Progress restored'); render(); }
     catch { toast('That was not valid progress data'); }
   };
-  s.querySelector('[data-reset]').onclick = () => {
-    if (confirm('Wipe all XP, mastery and mission progress? This cannot be undone.')) {
-      P = structuredClone(DEFAULTS); save(); A.sh = null; toast('Progress wiped'); go('home');
-    }
-  };
+  s.querySelector('[data-reset]').onclick = confirmWipe;
 }
 
 /* ---------------- settings modal ---------------- */
@@ -1067,6 +1080,17 @@ function openSettings() {
     <p class="muted" style="font-size:12px;margin-top:6px">Off keeps you on the next step. On unlocks every set so you can jump around.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Display</h3>
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
+    <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Your progress</h3>
+    <p class="muted" style="font-size:12px;margin:0 0 8px">
+      ${learnedCount()} cards learned · ${P.xp} XP · ${missionCount()} missions · ${Object.keys(P.badges).length} badges.
+      Saved in this browser only.</p>
+    <div class="row">
+      <button class="chip" data-export2>Copy a backup</button>
+      <button class="chip danger" data-wipe>Wipe all progress</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:6px">Wiping clears XP, scores, learned cards, badges and
+      solved missions, and puts every set back to the start. Themes and settings are kept. It cannot be undone.</p>
+
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Keyboard</h3>
     <p class="muted" style="font-size:12px">1–6 switch tabs · 1–4 pick an answer · Enter continues · Esc goes back · Ctrl-L clears the terminal</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">About</h3>
@@ -1084,6 +1108,51 @@ function openSettings() {
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
   d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
+  d.querySelector('[data-export2]').onclick = () => {
+    navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Backup copied to the clipboard'),
+      () => window.prompt('Copy your progress:', JSON.stringify(P)));
+  };
+  d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
+}
+
+/* Wiping is irreversible, so it asks twice and offers a backup first. */
+function confirmWipe() {
+  const d = document.createElement('div');
+  d.className = 'modal';
+  d.innerHTML = `<div class="inner">
+    <h2 style="color:var(--bad)">Wipe all progress?</h2>
+    <p style="font-size:13.5px;line-height:1.6">This clears everything you have earned in this browser:</p>
+    <ul style="font-size:13px;color:var(--dim);line-height:1.8;margin:0 0 14px;padding-left:20px">
+      <li><b style="color:var(--fg)">${P.xp}</b> XP, level ${level()} (${rank()})</li>
+      <li><b style="color:var(--fg)">${learnedCount()}</b> learned cards and every set score</li>
+      <li><b style="color:var(--fg)">${missionCount()}</b> solved terminal missions</li>
+      <li><b style="color:var(--fg)">${Object.keys(P.badges).length}</b> badges and your ${P.streak}-day streak</li>
+    </ul>
+    <p class="muted" style="font-size:12.5px">Your theme, bite size and daily goal are kept. This cannot be undone.</p>
+    <div class="row" style="margin-top:18px">
+      <button class="btn" data-backup>Copy a backup first</button>
+      <span class="spacer"></span>
+      <button class="btn" data-cancel>Cancel</button>
+      <button class="btn danger" data-yes>Yes, wipe it</button>
+    </div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('[data-cancel]').onclick = () => d.remove();
+  d.querySelector('[data-backup]').onclick = () => {
+    navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Backup copied to the clipboard'),
+      () => window.prompt('Copy your progress:', JSON.stringify(P)));
+  };
+  d.querySelector('[data-yes]').onclick = () => {
+    const keep = { ...P.settings }, goal = P.goal;
+    P = structuredClone(DEFAULTS);
+    P.settings = keep; P.goal = goal;         // preferences are not progress
+    save();
+    A.sh = null; A.mission = null; A.learn = null; A.quiz = null;
+    d.remove();
+    toast('Progress wiped — starting fresh');
+    go('home');
+  };
 }
 
 /* ---------------- changelog ---------------- */
@@ -1111,6 +1180,11 @@ function openChangelog() {
   document.body.appendChild(d);
   d.onclick = e => { if (e.target === d) d.remove(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
+  d.querySelector('[data-export2]').onclick = () => {
+    navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Backup copied to the clipboard'),
+      () => window.prompt('Copy your progress:', JSON.stringify(P)));
+  };
+  d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
 }
 
 /* ---------------- keyboard ---------------- */

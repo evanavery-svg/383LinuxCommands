@@ -400,7 +400,7 @@ code,.mono{font-family:var(--font)}
   background:none;border:0;padding:4px;font-family:inherit;color:var(--dim);cursor:pointer;
 }
 .step .bub{
-  width:50px;height:50px;border-radius:50%;display:grid;place-items:center;
+  width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:var(--panel);border:2px solid var(--line);color:var(--dim);font-size:15px;font-weight:700;transition:.15s;
 }
 .step .cap{font-size:10px;line-height:1.35;color:var(--dim);word-break:break-word;text-align:center;
@@ -476,3 +476,15 @@ code,.mono{font-family:var(--font)}
 .linkbtn.muted:hover{color:var(--fg)}
 /* a disabled primary button must not still look like the thing to press */
 .btn.primary:disabled{background:transparent;color:var(--dim);border-color:var(--line);font-weight:400;opacity:.75}
+
+/* ---------- set scores on the path ---------- */
+.step .bub{white-space:nowrap;line-height:1}
+.step .bub i{font-style:normal;font-size:9px;opacity:.8;margin-left:1px}
+.step.done.full .bub{background:var(--accent);border-color:var(--accent);color:var(--bg);font-size:12.5px}
+.step.done.part .bub{background:transparent;border-color:var(--accent);color:var(--accent);font-size:13px}
+.step.done.low  .bub{background:transparent;border-color:var(--warn);color:var(--warn);font-size:13px}
+.step.done.part .cap,.step.done.low .cap{color:var(--dim)}
+
+/* ---------- destructive actions ---------- */
+.btn.danger,.chip.danger{border-color:var(--bad);color:var(--bad)}
+.btn.danger:hover,.chip.danger:hover{background:var(--bad);color:var(--bg);border-color:var(--bad)}

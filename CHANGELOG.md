@@ -12,6 +12,26 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.4] — 2026-08-20
+
+### Changed
+- **Finished sets show a score, not a tick.** Each completed step on the path
+  displays the share of its cards you have answered correctly: **100%** fills the
+  circle in solid, 50–99% leaves it outlined, and below 50% turns it amber so the
+  shaky sets stand out.
+- Scores keep your **best** result, so retrying a set can only push it up. The
+  results screen now tells you what the set reads and nudges you to go for 100%.
+- Sets finished before this release have no recorded score and keep their tick.
+
+### Added
+- **Wipe progress in Settings**, under a new *Your progress* section that also
+  offers a one-click backup to the clipboard. Wiping asks to confirm, spells out
+  exactly what will be lost (XP, learned cards, set scores, missions, badges,
+  streak), and keeps your theme, bite size and daily goal. The Progress tab's
+  reset button now uses the same flow.
+
+---
+
 ## [0.3] — 2026-08-20
 
 Learning is now hands-on: you type each command instead of only reading it.

@@ -20,12 +20,18 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.3';
+const VERSION = '0.4';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.4', date:'2026-08-20', title:'Set scores on the path, and a wipe button',
+    notes:[
+      'Finished sets show your score on the path instead of a tick \u2014 100% fills the circle in, 50-99% outlines it, below 50% turns it amber.',
+      'Scores keep your best result, so retrying a set can only push it up. The results screen tells you what the set currently reads.',
+      'Settings has a Your progress section with a wipe button, which asks to confirm and offers a backup first. Themes and settings survive a wipe.'
+    ] },
   { version:'0.3', date:'2026-08-20', title:'Type every command as you learn it',
     notes:[
       'Every learning card now has a prompt of its own \u2014 you type the command out before moving on. Enter checks it, and a correct answer is worth 3 XP.',

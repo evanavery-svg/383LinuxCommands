@@ -1,6 +1,6 @@
 # sudo LEARN — a Linux command trainer
 
-**v0.3** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.4** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -21,9 +21,13 @@ and the topic grid.
 
 **The path** — a module is laid out as a line of numbered steps, grouped by
 topic. Each step is one short set of cards. The next step is highlighted and
-pulsing, finished ones fill in with a tick, and topics unlock in turn so there is
-always exactly one obvious thing to do. (Settings has a **free roam** switch if
-you would rather jump around.)
+pulsing, and topics unlock in turn so there is always exactly one obvious thing to
+do. (Settings has a **free roam** switch if you would rather jump around.)
+
+Finished steps show **your score** rather than a tick: 100% fills the circle in,
+50–99% leaves it outlined, below 50% turns it amber. Scores keep your best result,
+so retrying a set only ever pushes it up — which makes turning a path of 60s and
+80s into a wall of 100s something to chase.
 
 **Learn** — one idea per card: the command, one plain sentence saying what it
 does, a worked example with realistic output, and a "Remember" hook (`-h` only
@@ -61,7 +65,9 @@ example, each showing your mastery bar.
 
 **Progress** — XP, rank (Guest → root), day streak, accuracy, a 35-day activity
 heatmap, mastery by module and by topic, and your current weakest commands with a
-one-click drill for them. Export/import your save as JSON.
+one-click drill for them. Export/import your save as JSON, or wipe it: Settings →
+*Your progress* → **Wipe all progress** confirms first, offers a backup, and keeps
+your theme and preferences.
 
 **Keeping you coming back** — 15 badges to unlock, a combo bonus for correct
 answers in a row, and a daily XP goal (50 / 100 / 200) shown as a ring on the
