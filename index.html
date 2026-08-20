@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="matrix">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sudo LEARN — Linux command trainer</title>
+<meta name="description" content="Learn and drill the Linux command line: bite-sized lessons, adaptive quizzes and a simulated terminal you cannot break.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23041409'/><text y='72' x='12' font-size='58' font-family='monospace' fill='%2339ff8b'>$_</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="crt">
+
+<!-- ---------- boot screen ---------- -->
+<div id="boot">
+<pre>
+                   _         _
+  ___ _   _  __| | ___   | |    ___  __ _ _ __ _ __
+ / __| | | |/ _` |/ _ \  | |   / _ \/ _` | '__| '_ \
+ \__ \ |_| | (_| | (_) | | |__|  __/ (_| | |  | | | |
+ |___/\__,_|\__,_|\___/  |_____\___|\__,_|_|  |_| |_|
+
+ linux command trainer  ::  221 bites  ::  55 missions
+</pre>
+<div id="bootlog"></div>
+<div class="skip">press Enter or click anywhere to skip</div>
+</div>
+
+<!-- ---------- app ---------- -->
+<div id="app" class="wrap hidden">
+  <div class="win">
+    <div class="titlebar">
+      <div class="dots"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i></div>
+      <span class="path" id="winpath">student@fedora: ~</span>
+      <div class="right">
+        <button class="chip" id="bitebtn" title="Cards per learning set">bite: 5</button>
+        <button class="chip" id="themebtn" title="Cycle theme">theme</button>
+        <button class="chip" id="settingsbtn" title="Settings">⚙ settings</button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+    <main class="screen" id="screen"></main>
+    <div class="statusbar" id="statusbar"></div>
+  </div>
+  <p class="muted" style="font-size:11.5px;text-align:center;margin-top:14px">
+    Everything runs in your browser — nothing is installed, nothing is sent anywhere, and no real files are ever touched.
+    Progress is saved in this browser's localStorage.
+  </p>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/vfs.js"></script>
+<script src="assets/js/missions.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
