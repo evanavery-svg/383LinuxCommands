@@ -102,7 +102,14 @@ body.crt::after{ /* scanlines + flicker */
 .chip.on{color:var(--accent);border-color:var(--accent)}
 
 /* ---------- tab bar ---------- */
-.tabs{display:flex;flex-wrap:wrap;gap:2px;background:var(--bg2);border-bottom:1px solid var(--line);padding:0 6px}
+/* one row that scrolls sideways, rather than wrapping to two rows on a phone */
+.tabs{
+  display:flex;flex-wrap:nowrap;gap:2px;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding:0 6px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{scroll-snap-align:center}
 .tab{
   appearance:none;border:0;background:transparent;color:var(--dim);font-family:inherit;font-size:13px;
   padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;
@@ -112,7 +119,7 @@ body.crt::after{ /* scanlines + flicker */
 .tab .k{opacity:.6;font-size:11px}
 
 /* ---------- screen ---------- */
-.screen{padding:20px 22px 26px;min-height:62vh}
+.screen{padding:20px 22px 26px;min-height:62vh;min-height:62dvh}
 .screen h1{font-size:19px;margin:0 0 4px;color:var(--accent);text-shadow:var(--glow);letter-spacing:.5px}
 .screen h2{font-size:15px;margin:26px 0 10px;color:var(--fg)}
 .screen p.lead{color:var(--dim);margin:0 0 18px;font-size:13.5px}
@@ -143,6 +150,7 @@ body.crt::after{ /* scanlines + flicker */
 .btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:700}
 .btn.primary:hover{filter:brightness(1.12);color:var(--bg)}
 .btn.ghost{border-style:dashed}
+.btn.sm{font-size:12px;padding:6px 12px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .spacer{flex:1}
@@ -206,7 +214,7 @@ code,.mono{font-family:var(--font)}
   border-radius:7px;padding:11px 13px;margin-bottom:14px}
 .typebox:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .typebox .ps{color:var(--good);flex:0 0 auto}
-.typebox input{flex:1;background:transparent;border:0;outline:0;color:var(--fg);font-family:inherit;font-size:15px}
+.typebox input{flex:1 1 0;min-width:0;background:transparent;border:0;outline:0;color:var(--fg);font-family:inherit;font-size:15px}
 .verdict{border-radius:7px;padding:12px 14px;margin:4px 0 14px;font-size:13.5px;border:1px solid var(--line);background:var(--panel)}
 .verdict.ok{border-color:var(--good)}
 .verdict.no{border-color:var(--bad)}
@@ -216,10 +224,16 @@ code,.mono{font-family:var(--font)}
 
 /* ---------- terminal mode ---------- */
 .termgrid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
-@media(max-width:840px){.termgrid{grid-template-columns:1fr}}
+/* grid and flex children default to min-width:auto, so the command input's
+   intrinsic width would drag this column wider than the screen and .win would
+   silently clip it. */
+.termgrid > *{min-width:0}
+@media(max-width:900px){.termgrid{grid-template-columns:1fr}}
 #term{
   background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;
-  height:56vh;min-height:340px;overflow-y:auto;font-size:13.5px;line-height:1.5;
+  height:56vh;
+  height:56dvh;          /* dvh so the pane does not jump when mobile chrome or the keyboard appears */
+  min-height:340px;overflow:auto;-webkit-overflow-scrolling:touch;font-size:13.5px;line-height:1.5;
 }
 #term .l{white-space:pre-wrap;word-break:break-word}
 #term .l.nw{white-space:pre;word-break:normal}   /* keep ls -l columns lined up; the pane scrolls instead */
@@ -238,7 +252,7 @@ code,.mono{font-family:var(--font)}
   border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .terminput:focus-within{border-color:var(--accent)}
 .terminput .ps{color:var(--good);white-space:nowrap}
-.terminput input{flex:1;background:transparent;border:0;outline:0;color:var(--fg);font-family:inherit;font-size:14px}
+.terminput input{flex:1 1 0;min-width:0;background:transparent;border:0;outline:0;color:var(--fg);font-family:inherit;font-size:14px}
 .mission{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
 .mission h3{margin:0 0 8px;font-size:13px;color:var(--accent2);letter-spacing:.6px;text-transform:uppercase}
 .mission .goal{font-size:14px;line-height:1.55;margin:0 0 12px}
@@ -283,7 +297,8 @@ code,.mono{font-family:var(--font)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:flex;align-items:center;justify-content:center;
   z-index:120;padding:20px}
 .modal .inner{background:var(--bg);border:1px solid var(--accent);border-radius:10px;max-width:560px;width:100%;
-  padding:22px;max-height:82vh;overflow:auto;box-shadow:var(--shadow)}
+  padding:22px;max-height:82vh;max-height:82dvh;overflow:auto;box-shadow:var(--shadow);
+  -webkit-overflow-scrolling:touch}
 .modal h2{margin:0 0 12px;color:var(--accent);font-size:17px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:150;
   background:var(--panel);border:1px solid var(--accent);color:var(--fg);border-radius:8px;
@@ -488,3 +503,147 @@ code,.mono{font-family:var(--font)}
 /* ---------- destructive actions ---------- */
 .btn.danger,.chip.danger{border-color:var(--bad);color:var(--bad)}
 .btn.danger:hover,.chip.danger:hover{background:var(--bad);color:var(--bg);border-color:var(--bad)}
+
+/* =====================================================================
+   Touch & phone
+   ---------------------------------------------------------------------
+   Desktop rendering is deliberately untouched: everything here is behind
+   a pointer/hover query or the phone breakpoint.
+   ===================================================================== */
+
+/* ---------- touch semantics ---------- */
+/* Touch devices have no hover, but browsers fake one that sticks after a
+   tap — so a tapped card would stay lifted. Neutralise it and give real
+   :active feedback instead. */
+@media (hover:none){
+  .card:hover{transform:none;border-color:var(--line);box-shadow:none}
+  .btn:hover{border-color:var(--line);color:var(--fg)}
+  .btn.primary:hover{filter:none;color:var(--bg)}
+  .chip:hover{color:var(--dim);border-color:var(--line)}
+  .chip.on:hover{color:var(--accent);border-color:var(--accent)}
+  .tab:hover{color:var(--dim);background:transparent}
+  .tab.on:hover{color:var(--accent)}
+  .opt:hover:not(:disabled){border-color:var(--line);background:var(--panel)}
+  .modrow:hover:not(.locked){transform:none;border-color:var(--line)}
+  .step:hover:not(:disabled) .bub{transform:none}
+  .refrow:hover{background:transparent}
+  .linkbtn:hover,.linkbtn.muted:hover{color:inherit}
+}
+.btn,.card,.tab,.chip,.opt,.step,.modrow,.linkbtn,.keycap{
+  touch-action:manipulation;                       /* no 300ms double-tap-zoom delay */
+  -webkit-tap-highlight-color:transparent;
+}
+.btn:active,.chip:active,.keycap:active{transform:scale(.96)}
+.card:active,.modrow:active:not(.locked){border-color:var(--accent);background:var(--sel)}
+.opt:active:not(:disabled){border-color:var(--accent);background:var(--sel)}
+.step:active:not(:disabled) .bub{transform:scale(.93)}
+.tab:active{background:var(--sel)}
+
+/* ---------- coarse pointers: sizes ---------- */
+@media (pointer:coarse){
+  /* Anything under 16px makes iOS Safari zoom the page on focus, which
+     wrecks the type-it-yourself loop. */
+  .typebox input,.terminput input,.search,input{font-size:16px}
+
+  /* thumb-sized hit areas */
+  .btn{min-height:44px;padding:11px 18px}
+  .btn.sm{min-height:40px}
+  .chip{min-height:40px;padding:8px 14px;font-size:12.5px}
+  .tab{min-height:46px;display:flex;align-items:center}
+  .linkbtn{min-height:40px;padding:6px 4px}
+  .cardtop .x{min-width:44px;min-height:44px;font-size:19px}
+  .opt{padding:15px 14px}
+  .misslist div{padding:12px 0;line-height:1.4}   /* clickable rows, so give them real height */
+  .refrow{padding:13px 14px}
+}
+
+/* ---------- phone layout ---------- */
+@media (max-width:600px){
+  /* title bar: drop the decoration, keep one thumb-sized gear.
+     bite size and theme live in Settings, so nothing is lost. */
+  .titlebar{flex-wrap:nowrap;padding:6px 10px;gap:8px}
+  .titlebar .dots{display:none}
+  .titlebar .right{margin-left:auto;width:auto}
+  #bitebtn,#themebtn{display:none}
+  #settingsbtn{font-size:0;padding:0;width:40px;height:40px;display:grid;place-items:center;border-radius:50%}
+  #settingsbtn::before{content:"\2699";font-size:19px;line-height:1}
+
+  /* status bar: three numbers that matter, not six that wrap */
+  .statusbar{padding:6px 8px;font-size:11px}
+  .statusbar span.opt-hide{display:none}
+
+  /* the primary action stays under your thumb instead of below the fold */
+  .actionbar{
+    position:sticky;bottom:0;z-index:5;margin-left:-14px;margin-right:-14px;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,var(--bg) 72%,transparent);
+  }
+  /* drop the spacer so the primary action takes all the width left over —
+     a bigger target, and the label stops wrapping */
+  .actionbar .spacer{display:none}
+  .actionbar .btn.big{flex:1;text-align:center;white-space:nowrap}
+
+  /* the prompt is decoration; on a phone the input needs the width more
+     ([student@fedora ~]$ -> ~$ , student@fedora:~$ -> $) */
+  .terminput .host,.typebox .host{display:none}
+
+  .hero-next{flex-direction:column;align-items:flex-start}
+  .chapter{padding-left:12px}
+  .badges{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+  .modal{padding:10px}
+  .modal .inner{padding:18px 16px}
+}
+
+/* ---------- terminal on a phone ---------- */
+@media (max-width:900px){
+  /* read the mission first, then the terminal — the DOM order is the
+     other way round because the sidebar sits second on desktop */
+  .termgrid > div:last-child{order:-1}
+  .termgrid{gap:12px}
+}
+@media (max-width:600px){
+  #term{height:38vh;height:38dvh;min-height:200px;font-size:12.5px}
+  .misslist{max-height:150px}
+  .terminput{padding:8px 10px}
+  /* the terminal tab has to get to the point on a phone: the explainer and the
+     55-row mission list both push the input below the fold */
+  .phone-hide{display:none}
+  .mission .misslist{display:none}
+  .mission.showlist .misslist{display:block;max-height:46vh}
+  .mission .listtoggle{display:inline-block;margin-top:10px;width:100%}
+}
+
+.listtoggle{display:none}
+
+/* symbol shortcuts: typing "ls -ltr /var/log" on a phone keyboard means
+   three trips through the symbol layers without these */
+.keybar{display:none;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.keybar::-webkit-scrollbar{display:none}
+.keybar.on{display:flex}
+.keycap{
+  flex:0 0 auto;min-width:40px;height:40px;border-radius:7px;border:1px solid var(--line);
+  background:var(--panel);color:var(--accent);font-family:inherit;font-size:15px;cursor:pointer;
+  display:grid;place-items:center;padding:0 10px;transition:.1s;
+}
+.keycap.wide{font-size:12px;letter-spacing:.5px}
+
+/* ---------- notches and home indicators ---------- */
+@supports(padding:max(0px)){
+  .wrap{
+    padding-left:max(14px,env(safe-area-inset-left));
+    padding-right:max(14px,env(safe-area-inset-right));
+    padding-bottom:max(60px,calc(40px + env(safe-area-inset-bottom)));
+  }
+}
+
+/* ---------- boot banner on narrow screens ---------- */
+@media (max-width:430px){
+  #boot{padding:6vh 5vw}
+  #boot pre{font-size:0;line-height:0}
+  #boot pre::before{
+    content:"sudo LEARN\A___________\A\Alinux command trainer\Amodule 1 of 7 · 221 bites";
+    white-space:pre;font-size:19px;line-height:1.45;letter-spacing:1px;display:block;
+  }
+  #bootlog{font-size:12px}
+}

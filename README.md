@@ -1,6 +1,6 @@
 # sudo LEARN — a Linux command trainer
 
-**v0.4** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.5** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -73,6 +73,26 @@ your theme and preferences.
 answers in a row, and a daily XP goal (50 / 100 / 200) shown as a ring on the
 module page.
 
+## On a phone
+
+Built to be used one-handed on the bus, not just checked at a phone width:
+
+- **Add it to your home screen** and it opens fullscreen with its own icon, no
+  browser bars, and a status bar tinted to match your theme.
+- Typing never zooms the page — inputs are 16px on touch, with autocorrect and
+  autocapitalise off and a **Go** key on the keyboard.
+- The tab bar is one sideways-scrolling row, the title bar collapses to a single
+  settings gear, and the learn card's **Got it** button stays pinned under your
+  thumb.
+- The Terminal tab puts the **mission goal first**, collapses the mission list,
+  and adds a row of shortcut keys — `- / ~ . * $ | > & % + :` — above the keyboard,
+  so `ls -ltr /var/log` is realistic to type without hunting through symbol layers.
+- Every button, tab and row is a proper tap target, and taps don't leave things
+  stuck in a hover state.
+
+Desktop is unchanged — all of the above sits behind pointer, hover or width
+queries.
+
 ## Themes
 
 Six, cycled with the **theme** chip: Matrix green, Amber CRT, Ubuntu, Dracula,
@@ -90,6 +110,9 @@ tabs, prompt lines, and an htop-style status bar.
 | `Enter` | check what you typed / next question |
 | `↑` `↓` | command history in the terminal |
 | `Ctrl-L` | clear the terminal |
+
+On a touch device the shortcut row above the terminal keyboard inserts
+`-` `/` `~` `.` `*` `$` `|` `>` `&` `%` `+` `:` and space at the cursor.
 
 ## Running it
 
@@ -142,8 +165,10 @@ Every screen reads from `MODULES`, so the new module shows up on its own.
 ## Files
 
 ```
-index.html              page shell, boot screen and footer
-assets/css/style.css    six themes, terminal chrome, responsive layout
+index.html              page shell, boot screen, install meta and footer
+manifest.webmanifest    add-to-home-screen manifest
+assets/icons/           app icons (192, 512, apple-touch)
+assets/css/style.css    six themes, terminal chrome, responsive + touch layout
 assets/js/data.js       version, changelog, module registry, and the
                         curriculum: Module 1's 9 topics, 32 lessons, 221 bites
 assets/js/vfs.js        virtual filesystem + shell (about 60 commands)

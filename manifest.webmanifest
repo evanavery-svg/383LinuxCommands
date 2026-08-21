@@ -1,0 +1,17 @@
+{
+  "name": "sudo LEARN — Linux command trainer",
+  "short_name": "sudo LEARN",
+  "description": "Learn and drill the Linux command line: bite-sized lessons, adaptive quizzes and a simulated terminal you cannot break.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020a05",
+  "theme_color": "#020a05",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -20,12 +20,22 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.4';
+const VERSION = '0.5';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.5', date:'2026-08-20', title:'Built for a phone as well as a desktop',
+    notes:[
+      'Typing no longer zooms the page on iPhone \u2014 every input is 16px on touch, with autocorrect and autocapitalise off and a Go key on the keyboard.',
+      'Tapped cards no longer stick in a hover state, and every button, tab and chip is now a proper thumb-sized target.',
+      'The tab bar is one sideways-scrolling row instead of wrapping to two, and the title bar collapses to a single settings gear \u2014 bite size and theme live in Settings.',
+      'The learn card keeps its Got it button pinned within thumb reach at the bottom of the screen.',
+      'Terminal on a phone: the mission goal comes first, the 55-mission list collapses behind a toggle, and a row of shortcut keys (- / ~ . * $ | > & % + :) sits above the keyboard.',
+      'Fixed: the terminal column ran about 200px past the screen edge and was being silently clipped.',
+      'Add it to your home screen \u2014 it installs with an icon and opens fullscreen, with the status bar tinted to match your theme.'
+    ] },
   { version:'0.4', date:'2026-08-20', title:'Set scores on the path, and a wipe button',
     notes:[
       'Finished sets show your score on the path instead of a tick \u2014 100% fills the circle in, 50-99% outlines it, below 50% turns it amber.',

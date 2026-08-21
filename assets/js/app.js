@@ -199,6 +199,19 @@ const TABS = [
   ['terminal','Terminal'], ['reference','Reference'], ['progress','Progress']
 ];
 
+/* Shell text is case-sensitive and full of things a phone keyboard loves to
+   "helpfully" correct, so every input we render turns all of that off. */
+const TYPING_ATTRS = 'autocomplete="off" autocapitalize="off" autocorrect="off" ' +
+                     'spellcheck="false" inputmode="text"';
+
+/* Touch keyboards bury these behind a symbol layer or two. */
+const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches;
+const TERM_KEYS = [
+  { ins:'-' }, { ins:'/' }, { ins:'~' }, { ins:'.' }, { ins:'*' }, { ins:'$' },
+  { ins:'|' }, { ins:'>' }, { ins:'&' }, { ins:'%' }, { ins:'+' }, { ins:':' },
+  { ins:' ', label:'space', w:true }
+];
+
 /* ---------------- boot ---------------- */
 const BOOT_LINES = [
   `[  <b>OK</b>  ] Started Command Practice Daemon (sudo LEARN v${VERSION})`,
@@ -234,21 +247,31 @@ function finishBoot() {
 function applySettings() {
   document.documentElement.dataset.theme = P.settings.theme;
   document.body.classList.toggle('crt', !!P.settings.crt);
+  /* match the phone's status bar to the theme when installed to the home screen */
+  const meta = el('themecolor');
+  if (meta) {
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--wall1').trim();
+    if (bg) meta.setAttribute('content', bg);
+  }
 }
 function renderTabs() {
   el('tabs').innerHTML = TABS.map(([id,label],i) =>
     `<button class="tab ${A.tab===id?'on':''}" data-tab="${id}">${label} <span class="k">[${i+1}]</span></button>`).join('');
   el('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => go(b.dataset.tab));
+  /* the bar is one sideways-scrolling row on a phone, so keep the active tab in view */
+  const on = el('tabs').querySelector('.tab.on');
+  if (on && on.scrollIntoView) on.scrollIntoView({ inline:'center', block:'nearest' });
 }
 function renderStatusbar() {
   const done = Object.values(P.mastery).filter(x => x.b >= 4).length;
+  /* opt-hide drops out on phones, leaving the three numbers worth glancing at */
   el('statusbar').innerHTML =
-    `<span><b>${rank()}</b> · lvl ${level()}</span>` +
-    `<span>XP <b>${P.xp}</b></span>` +
+    `<span class="opt-hide"><b>${rank()}</b> · lvl ${level()}</span>` +
+    `<span class="opt-hide">XP <b>${P.xp}</b></span>` +
     `<span>streak <b>${P.streak}</b>d</span>` +
     `<span>learned <b>${learnedCount()}</b>/${ALL_ITEMS.length}</span>` +
     `<span>today <b>${todayXP()}</b>/${P.goal} XP</span>` +
-    `<span class="muted">^L clear · Esc back</span>`;
+    `<span class="muted opt-hide">^L clear · Esc back</span>`;
   const bb = el('bitebtn'); if (bb) bb.textContent = `bite: ${P.settings.bite}`;
   const tb = el('themebtn'); if (tb) tb.textContent = (THEMES.find(t => t[0] === P.settings.theme) || ['','theme'])[1].toLowerCase();
 }
@@ -320,7 +343,7 @@ function renderModuleHome(s, num) {
 
   s.innerHTML = prompt(`cd ~/course/module${num}`) + `
     <div class="row" style="margin-bottom:6px">
-      <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-back>← modules</button>
+      <button class="btn ghost sm" data-back>← modules</button>
     </div>
     <h1>${esc(mo.label)}</h1>
     <p class="lead">${esc(mo.blurb)}</p>
@@ -562,23 +585,24 @@ function renderChunkCard(s) {
     <div class="typeit ${typed ? 'ok' : ''}" id="typeit">
       <div class="tlabel">${typed ? '✓ typed' : isKey ? 'Now type the keystroke yourself' : 'Now type it yourself'}</div>
       <div class="typebox" id="tbox">
-        ${isKey ? '<span class="ps key">⌨</span>' : '<span class="ps">student@fedora:~$</span>'}
-        <input id="cardin" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+        ${isKey ? '<span class="ps key">⌨</span>'
+                : '<span class="ps"><span class="host">student@fedora:~</span>$</span>'}
+        <input id="cardin" ${TYPING_ATTRS} enterkeyhint="go"
                ${typed ? 'disabled' : ''} value="${typed ? esc(it.cmd) : ''}"
                placeholder="${isKey ? 'the keystroke…' : 'type the command…'}">
       </div>
       <div class="tfb" id="cardfb">${typed ? '' : 'Copy it out — muscle memory is half of learning a shell.'}</div>
     </div>
 
-    <div class="row" style="margin-top:16px">
+    <p class="center" style="margin-top:12px">
+      <button class="linkbtn muted" data-skip style="font-size:11.5px">skip typing this one</button>
+    </p>
+    <div class="row actionbar" style="margin-top:10px">
       <button class="btn" data-prev ${L.i===0?'disabled':''}>←</button>
       <span class="spacer"></span>
       <button class="btn primary big" data-next ${typed ? '' : 'disabled'}>${
-        typed ? (last ? 'Quick check →' : 'Got it →') : 'Type it above first'}</button>
-    </div>
-    <p class="center" style="margin-top:10px">
-      <button class="linkbtn muted" data-skip style="font-size:11.5px">skip typing this one</button>
-    </p>`;
+        typed ? (last ? 'Quick check →' : 'Got it →') : 'Type it first'}</button>
+    </div>`;
 
   const input = el('cardin'), fb = el('cardfb'), tbox = el('tbox'), next = s.querySelector('[data-next]');
   if (!typed) {
@@ -703,7 +727,7 @@ function renderQuestion(s) {
   const body = el('qbody');
   if (q.type === 'type') {
     body.innerHTML = `<div class="typebox"><span class="ps">student@fedora:~$</span>
-        <input id="tin" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${q.placeholder}"></div>
+        <input id="tin" ${TYPING_ATTRS} enterkeyhint="go" placeholder="${q.placeholder}"></div>
       <div class="row"><button class="btn primary" id="tgo">Answer</button>
         <button class="btn" id="tskip">I don't know</button></div>`;
     const input = el('tin'); input.focus();
@@ -813,19 +837,21 @@ function renderTerminal(s) {
   A.mission = cur;
   s.innerHTML = prompt('bash --login') + `
     <h1>Terminal — a Linux box you cannot break</h1>
-    <p class="lead">Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
+    <p class="lead phone-hide">Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
       so any correct route counts. Type <span class="cmdtag">help</span>, or just explore.<br>
       <span class="tag ok">${MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span></p>
     <div class="termgrid">
       <div>
         <div id="term"></div>
-        <div class="terminput"><span class="ps">[student@fedora <span id="cwdlab">${esc(shortCwd())}</span>]$</span>
-          <input id="tinput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a command and press Enter"></div>
+        <div class="terminput"><span class="ps"><span class="host">[student@fedora </span><span id="cwdlab">${esc(shortCwd())}</span><span class="host">]</span>$</span>
+          <input id="tinput" ${TYPING_ATTRS} enterkeyhint="go" placeholder="type a command"></div>
+        <div class="keybar${COARSE ? ' on' : ''}" id="keybar">${TERM_KEYS.map(k =>
+          `<button class="keycap${k.w ? ' wide' : ''}" data-k="${esc(k.ins)}">${esc(k.label || k.ins)}</button>`).join('')}</div>
         <div class="row" style="margin-top:8px">
-          <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-hint>Hint</button>
-          <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-skip>Skip mission</button>
-          <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-clear>Clear screen</button>
-          <button class="btn ghost" style="font-size:12px;padding:5px 11px" data-resetfs>Reset filesystem</button>
+          <button class="btn ghost sm" data-hint>Hint</button>
+          <button class="btn ghost sm" data-skip>Skip mission</button>
+          <button class="btn ghost sm" data-clear>Clear screen</button>
+          <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
         </div>
       </div>
       <div>
@@ -837,6 +863,7 @@ function renderTerminal(s) {
                 : `<p class="goal">You have cleared every mission. Free-play mode: try anything you like.</p>`}
           <div class="bar" style="margin-top:10px"><i style="width:${solved/MISSIONS.length*100}%"></i></div>
           <div class="muted" style="font-size:11.5px;margin-top:6px">${solved}/${MISSIONS.length} solved</div>
+          <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${MISSIONS.length} missions</button>
           <div class="misslist">${MISSIONS.map((mi,i) => `<div class="${P.missions[mi.id]?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
             ${P.missions[mi.id]?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}</div>`).join('')}</div>
         </div>
@@ -858,11 +885,27 @@ function renderTerminal(s) {
     else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }
     else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); A.buffer = []; paintTerm(); }
   };
+  /* pointerdown + preventDefault keeps focus (and the on-screen keyboard) on
+     the input, so tapping a symbol never dismisses the keyboard mid-command */
+  s.querySelectorAll('.keycap').forEach(k => k.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const at = input.selectionStart ?? input.value.length;
+    input.setRangeText(k.dataset.k, at, input.selectionEnd ?? at, 'end');
+    input.focus();
+  }));
   s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
   s.querySelector('[data-resetfs]').onclick = () => { A.sh = new Shell(); A.buffer = []; pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus(); };
   s.querySelector('[data-skip]').onclick = () => { if (A.mission) { A.mission = nextMission(A.mission.id); render(); } };
   s.querySelector('[data-hint]').onclick = () => { const h = el('hintbox'); if (h && A.mission) h.innerHTML = `💡 ${esc(A.mission.hint)}`; input.focus(); };
   s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
+  /* on a phone the 55-row list is collapsed by default so the terminal is not
+     pushed off the screen; this reveals it */
+  const lt = s.querySelector('[data-listtoggle]');
+  if (lt) lt.onclick = () => {
+    const box = el('missionbox');
+    box.classList.toggle('showlist');
+    lt.textContent = box.classList.contains('showlist') ? 'Hide the mission list' : `Browse all ${MISSIONS.length} missions`;
+  };
 }
 function nextMission(afterId) {
   const start = afterId ? MISSIONS.findIndex(m2 => m2.id === afterId) + 1 : 0;
@@ -962,7 +1005,8 @@ function renderReference(s) {
     <h1>Reference — every command in the course</h1>
     <p class="lead">${ALL_ITEMS.length} entries, all from ${READY_MODULES.map(mo => mo.label).join(' and ')}.
       Search by command, by what it does, or by flag. The bar on the right is your mastery.</p>
-    <input class="search" id="refsearch" placeholder="search…  try: permission, background, ls, vim, delete" autocomplete="off">
+    <input class="search" id="refsearch" type="search" enterkeyhint="search" ${TYPING_ATTRS}
+           placeholder="search…  try: permission, background, ls, vim">
     <div id="refout"></div>`;
   const draw = (q = '') => {
     const ql = q.toLowerCase().trim();

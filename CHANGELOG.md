@@ -12,6 +12,53 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.5] — 2026-08-20
+
+Built for a phone as well as a desktop. Desktop rendering is unchanged — every
+change here sits behind a pointer, hover or width query.
+
+### Fixed
+- **Typing zoomed the page on iPhone.** Every input was 14–15px, and iOS Safari
+  auto-zooms anything under 16px on focus — so since v0.3 the app zoomed on every
+  single card. All inputs are now 16px on touch, with `autocorrect`,
+  `autocapitalize` and `spellcheck` off and `enterkeyhint="go"` so the keyboard
+  offers a Go key instead of a newline.
+- **Tapped cards stayed stuck in their hover state.** 15 hover rules had no
+  pointer guard; they are now neutralised under `(hover:none)` and replaced with
+  real `:active` press feedback.
+- **The terminal column ran ~200px past the screen edge and was silently
+  clipped** — grid and flex children default to `min-width:auto`, so the command
+  input's intrinsic width dragged the whole column wider than the phone, and
+  `.win{overflow:hidden}` hid the evidence rather than scrolling.
+- Layout no longer jumps when mobile browser chrome or the keyboard appears
+  (`dvh` instead of `vh`).
+
+### Changed
+- **Tab bar is one sideways-scrolling row** instead of wrapping to two, and keeps
+  the active tab scrolled into view.
+- **Title bar collapses to a single settings gear** on phones; bite size and theme
+  are in Settings already. Traffic lights and the long path are dropped, and the
+  status bar shows three numbers rather than six wrapped ones.
+- **Tap targets**: buttons, tabs, chips, the card's ✕ and the clickable mission
+  rows are all ≥40px on touch. The small inline-styled buttons became a `.btn.sm`
+  class so one rule covers them.
+- **The learn card's action row is pinned to the bottom** of the screen on phones,
+  so *Got it* stays under your thumb instead of below the Remember box.
+- `touch-action:manipulation` everywhere, removing the double-tap-zoom delay.
+
+### Added
+- **Add to home screen.** A web manifest, app icons and a `theme-color` that
+  follows your chosen theme; it installs and opens fullscreen with no browser bars.
+  Safe-area insets keep content clear of notches and home indicators.
+- **Symbol shortcut row in the terminal** on touch devices — `- / ~ . * $ | > & % + :`
+  and a space key, inserted at the cursor without dismissing the keyboard. Typing
+  `ls -ltr /var/log` no longer means three trips through the symbol layers.
+- On a phone the terminal shows the **mission goal first**, and the 55-mission list
+  collapses behind a *Browse all missions* toggle so the prompt stays on screen.
+- A compact boot banner under 430px, since the ASCII art overflowed narrow phones.
+
+---
+
 ## [0.4] — 2026-08-20
 
 ### Changed
