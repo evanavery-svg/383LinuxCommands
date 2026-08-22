@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.6';
+const VERSION = '0.7';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.7', date:'2026-08-20', title:'Finish a topic and it actually says 100%',
+    notes:[
+      'The percentage on a topic is now the average of your set scores, so finishing every set at 100% reads 100%. It used to show spaced-repetition depth, which needs each card right on five separate days and could never reach 100% just by finishing.',
+      'The module header shows that same score instead of "mastered", and the home module list agrees with both.',
+      'The old depth figure is still there, on the Progress tab, now called Retention with a note explaining what it means and why it fills slowly.',
+      'The Halfway and Module mastered badges now track score, so they are winnable.'
+    ] },
   { version:'0.6', date:'2026-08-20', title:'Now called PATHfinder, and Enter behaves',
     notes:[
       'Renamed from sudo LEARN to PATHfinder \u2014 a $PATH pun, and the course is already laid out as a path of steps. Your progress carries over automatically.',

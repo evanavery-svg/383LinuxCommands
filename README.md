@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.6** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.7** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -63,8 +63,14 @@ until you run `reset`.
 **Reference** — all 221 entries, searchable by command, description, flag or
 example, each showing your mastery bar.
 
+**Two different numbers, kept apart.** Your **score** — on topic cards, the module
+header and the Progress tab — is the average of your set scores, so finishing every set
+in a topic at 100% reads 100%. **Retention**, on the Progress tab, is the
+spaced-repetition depth: a command climbs one of five levels each time you get it right,
+so it fills slowly and is what the Review queue uses to decide what is fading.
+
 **Progress** — XP, rank (Guest → root), day streak, accuracy, a 35-day activity
-heatmap, mastery by module and by topic, and your current weakest commands with a
+heatmap, score by module, retention by topic, and your current weakest commands with a
 one-click drill for them. Export/import your save as JSON, or wipe it: Settings →
 *Your progress* → **Wipe all progress** confirms first, offers a backup, and keeps
 your theme and preferences.

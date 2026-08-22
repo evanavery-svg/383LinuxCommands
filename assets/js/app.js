@@ -94,6 +94,15 @@ function setPct(items) {
   if (!scored.length) return null;
   return Math.round(scored.filter(i => P.quick[i.id]).length / items.length * 100);
 }
+
+/* What a topic or module is "at": the average of its set scores, with sets you
+   have not reached counting as zero. Finish every set at 100% and it reads 100%,
+   which is what "5/5 sets" leads you to expect. Distinct from masteryPct below,
+   which is the spaced-repetition depth and climbs only over days. */
+function setScore(set) { return set.pct === null ? (set.done ? 100 : 0) : set.pct; }
+function scoreOf(sets) {
+  return sets.length ? Math.round(sets.reduce((s, x) => s + setScore(x), 0) / sets.length) : 0;
+}
 function markLearned(items) { items.forEach(i => { P.learned[i.id] = true; }); save(); }
 function learnedCount() { return Object.keys(P.learned).length; }
 function missionCount() { return Object.keys(P.missions).length; }
@@ -115,8 +124,10 @@ const BADGES = [
   { id:'mission10',icon:'🛠️',name:'Shell tinkerer',   desc:'Solve 10 terminal missions',         test:()=>missionCount() >= 10 },
   { id:'missionAll',icon:'🏆',name:'Mission complete', desc:'Solve every terminal mission',       test:()=>missionCount() >= MISSIONS.length },
   { id:'vimquit', icon:'🚪', name:'Escaped Vim',      desc:'Master how to quit Vim',             test:()=>(P.mastery.vim_qbang||{}).b >= 3 },
-  { id:'mod50',   icon:'🥈', name:'Halfway',          desc:'50% mastery of a whole module',      test:()=>READY_MODULES.some(mo => masteryPct(mo.items.map(i=>i.id)) >= 50) },
-  { id:'mod100',  icon:'👑', name:'Module mastered',  desc:'100% mastery of a whole module',     test:()=>READY_MODULES.some(mo => masteryPct(mo.items.map(i=>i.id)) >= 100) }
+  /* These track score, not retention — retention needs every card right on five
+     separate days, which would make "Module mastered" all but unwinnable. */
+  { id:'mod50',   icon:'🥈', name:'Halfway',          desc:'Score 50% across a whole module',    test:()=>READY_MODULES.some(mo => scoreOf(allSets(mo.num)) >= 50) },
+  { id:'mod100',  icon:'👑', name:'Module mastered',  desc:'Score 100% across a whole module',   test:()=>READY_MODULES.some(mo => scoreOf(allSets(mo.num)) >= 100) }
 ];
 function checkBadges() {
   const fresh = [];
@@ -325,15 +336,14 @@ function renderHome(s) {
             <div class="num">${mo.num}</div>
             <div class="body"><h3>${esc(mo.label)}</h3></div>
             <div class="go">not added yet 🔒</div></div>`;
-        const ids = mo.items.map(i => i.id);
-        const pct = masteryPct(ids);
         const sets = allSets(mo.num);
+        const pct = scoreOf(sets);
         const done = sets.filter(x => x.done).length;
         return `<button class="modrow" data-mod="${mo.num}">
             <div class="num">${mo.num}</div>
             <div class="body">
               <h3>${esc(mo.label)}</h3>
-              <p>${done ? `${done} of ${sets.length} sets done · ${pct}% mastered` : `${sets.length} short sets · start anywhere`}</p>
+              <p>${done ? `${done} of ${sets.length} sets done · scoring ${pct}%` : `${sets.length} short sets · start anywhere`}</p>
               <div class="bar"><i style="width:${sets.length ? done/sets.length*100 : 0}%"></i></div>
             </div>
             <div class="go">${done ? '▶' : '▶'}</div>
@@ -381,7 +391,7 @@ function renderModuleHome(s, num) {
 
     <div class="strip">
       <div><b>${done}</b><span>of ${sets.length} sets</span></div>
-      <div><b>${masteryPct(ids)}%</b><span>mastered</span></div>
+      <div><b>${scoreOf(sets)}%</b><span>score</span></div>
       <div><b>${P.streak}</b><span>day streak</span></div>
       <div><b>${solved}</b><span>of ${missions.length} missions</span></div>
     </div>
@@ -400,10 +410,10 @@ function renderModuleHome(s, num) {
     <h2>Topics in this module</h2>
     <div class="grid g3">
       ${mo.cats.map(c => {
-        const cids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id);
-        const pct = masteryPct(cids);
-        const cdone = sets.filter(x => x.cat === c.id && x.done).length;
-        const call  = sets.filter(x => x.cat === c.id).length;
+        const csets = sets.filter(x => x.cat === c.id);
+        const pct = scoreOf(csets);
+        const cdone = csets.filter(x => x.done).length;
+        const call  = csets.length;
         return `<button class="card" data-cat="${c.id}">
           <h3>${c.icon} ${esc(c.name)}</h3>
           <p>${esc(c.blurb)}</p>
@@ -711,7 +721,7 @@ function renderDrill(s) {
       <div class="grid g3">
         ${mo.cats.map(c => `<button class="card" data-cat="${c.id}"><h3>${c.icon} ${esc(c.name)}</h3>
           <div class="meta"><span>${ALL_ITEMS.filter(i=>i.cat===c.id).length} bites</span>
-          <span>${masteryPct(ALL_ITEMS.filter(i=>i.cat===c.id).map(i=>i.id))}%</span></div></button>`).join('')}
+          <span>${scoreOf(allSets(mo.num).filter(x => x.cat === c.id))}%</span></div></button>`).join('')}
       </div>`).join('')}`;
   s.querySelectorAll('[data-n]').forEach(b => b.onclick = () => startDrill(pickAdaptive(+b.dataset.n)));
   s.querySelector('[data-due]').onclick = () => { if (due.length) startDrill(sample(due, Math.min(15,due.length))); };
@@ -1085,7 +1095,7 @@ function renderProgress(s) {
       <div class="stat"><div class="k">Total XP</div><div class="v">${P.xp}</div></div>
       <div class="stat"><div class="k">Day streak</div><div class="v">${P.streak}</div></div>
       <div class="stat"><div class="k">Accuracy</div><div class="v">${acc}%</div><div class="muted" style="font-size:12px">${totC} right · ${totW} wrong</div></div>
-      <div class="stat"><div class="k">Mastered</div><div class="v">${mastered.length}</div><div class="muted" style="font-size:12px">of ${ALL_ITEMS.length} bites</div></div>
+      <div class="stat"><div class="k">Strong recall</div><div class="v">${mastered.length}</div><div class="muted" style="font-size:12px">of ${ALL_ITEMS.length} bites</div></div>
       <div class="stat"><div class="k">Missions</div><div class="v">${Object.keys(P.missions).length}</div><div class="muted" style="font-size:12px">of ${MISSIONS.length}</div></div>
     </div>
 
@@ -1100,16 +1110,22 @@ function renderProgress(s) {
     <div class="heat">${days.map(d => { const xp = P.days[d]||0;
       return `<i class="${xp>=150?'l3':xp>=60?'l2':xp>0?'l1':''}" title="${d}: ${xp} XP"></i>`; }).join('')}</div>
 
-    <h2>Mastery by module</h2>
-    ${MODULES.map(mo => { const p = mo.ready ? masteryPct(mo.items.map(i => i.id)) : 0;
+    <h2>Score by module</h2>
+    <p class="lead" style="margin-bottom:10px">How much of each module you have finished, and how well.
+      This is the average of your set scores — the same numbers on the path.</p>
+    ${MODULES.map(mo => { const p = mo.ready ? scoreOf(allSets(mo.num)) : 0;
       return `<div class="masterrow"><div class="nm">${esc(mo.label)}</div>
         <div class="bar"><i style="width:${p}%"></i></div>
         <div class="pc">${mo.ready ? p + '%' : '—'}</div></div>`; }).join('')}
 
-    ${READY_MODULES.map(mo => `<h2>Mastery by topic <span class="muted" style="font-size:12.5px">· ${esc(mo.label)}</span></h2>
-    ${mo.cats.map(c => { const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id); const p = masteryPct(ids);
+    <h2>Retention</h2>
+    <p class="lead" style="margin-bottom:10px">A different thing: how deeply each topic has settled in.
+      A command climbs one of five levels each time you get it right, so this fills slowly and on purpose —
+      it is not how much you have finished. It is what the Review queue uses to decide what is fading.</p>
+    ${READY_MODULES.map(mo =>
+    mo.cats.map(c => { const ids = ALL_ITEMS.filter(i => i.cat === c.id).map(i => i.id); const p = masteryPct(ids);
       return `<div class="masterrow"><div class="nm">${c.icon} ${esc(c.name)}</div>
-        <div class="bar"><i style="width:${p}%"></i></div><div class="pc">${p}%</div></div>`; }).join('')}`).join('')}
+        <div class="bar"><i style="width:${p}%"></i></div><div class="pc">${p}%</div></div>`; }).join('')).join('')}
 
     <h2>Weakest right now</h2>
     ${weak.length ? `<div class="reflist">${weak.map(i => `<div class="refrow"><div class="c">${esc(i.cmd)}</div>

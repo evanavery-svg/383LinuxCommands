@@ -12,6 +12,32 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.7] — 2026-08-20
+
+### Changed
+- **A topic's percentage now means what finishing it implies.** It is the average of
+  your set scores, with sets you have not reached counting as zero — so completing every
+  set in a topic at 100% shows **100%**, matching the numbers already on the path.
+
+  Previously that slot showed the Leitner *depth* (`box ÷ 5`, averaged). Answering all
+  17 Navigation & Listing cards correctly once gives exactly 20%; reaching 100% would
+  have required getting every card right on five separate days. Sitting next to
+  "5/5 sets", it read as though finishing the topic hadn't counted.
+- The module header stat is now **score** rather than "mastered", and the home module
+  list quotes the same figure, so all three surfaces agree.
+- **Halfway** and **Module mastered** badges now track score instead of depth — under
+  the old rule "Module mastered" was very nearly unwinnable.
+
+### Added
+- The Progress tab now separates the two ideas: **Score by module** (how much you have
+  finished and how well) and **Retention** (how deeply it has settled in), each with a
+  line explaining what it measures. The stat tile is renamed **Strong recall**.
+
+Retention, the Review queue and the spaced-repetition engine are all unchanged — this
+release only changes which number is shown where, and what it is called.
+
+---
+
 ## [0.6] — 2026-08-20
 
 ### Changed
