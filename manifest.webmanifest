@@ -1,6 +1,6 @@
 {
-  "name": "sudo LEARN — Linux command trainer",
-  "short_name": "sudo LEARN",
+  "name": "PATHfinder — Linux command trainer",
+  "short_name": "PATHfinder",
   "description": "Learn and drill the Linux command line: bite-sized lessons, adaptive quizzes and a simulated terminal you cannot break.",
   "start_url": "./",
   "scope": "./",

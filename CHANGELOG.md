@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to sudo LEARN are recorded here. This file mirrors the
+All notable changes to PATHfinder are recorded here. This file mirrors the
 in-app changelog (the **changelog** link in the page footer); the source of
 truth for that is the `CHANGELOG` array at the top of `assets/js/data.js`.
 
@@ -9,6 +9,34 @@ it adds.
 
 Versions follow `MAJOR.MINOR`: a new module bumps the minor number, fixes and
 tweaks get a patch suffix.
+
+---
+
+## [0.6] — 2026-08-20
+
+### Changed
+- **Renamed from sudo LEARN to PATHfinder.** The old name was taken. The new one
+  is a `$PATH` pun that matches what the app already does — the Learn tab lays the
+  course out as a path of numbered steps, and `$PATH` is part of the curriculum.
+- Existing progress carries over by itself: the save moved from `sudolearn.v1` to
+  `pathfinder.v1`, and an older save is read once and rewritten under the new key.
+
+### Fixed
+- **Enter could skip a card you had not typed yet.** After a correct answer the
+  card disables its input and auto-advances 700 ms later. Disabling the input drops
+  focus to `<body>`, so a second Enter in that window reached the global shortcut,
+  which clicked the freshly enabled *Got it* button — advancing once immediately
+  and again when the timer fired. The card in between flashed past untyped.
+  `advanceChunk()` is now idempotent per card and cancels any pending auto-advance,
+  and focus moves to the button rather than falling to the body.
+- **Holding Enter no longer machine-guns the UI** — auto-repeat keydowns are
+  ignored.
+
+### Added
+- **Enter continues from the results screen.** Finish a set and press Enter to drop
+  straight into the next one, without reaching for the mouse. The primary button is
+  focused when the screen appears, so the keyboard flow is unbroken from the first
+  card to the next set.
 
 ---
 

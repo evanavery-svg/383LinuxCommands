@@ -1,6 +1,6 @@
-# sudo LEARN — a Linux command trainer
+# PATHfinder — a Linux command trainer
 
-**v0.5** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.6** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -107,7 +107,7 @@ tabs, prompt lines, and an htop-style status bar.
 | `1`–`6` | switch tabs |
 | `Esc` | step back out (card → path → module → home) |
 | `1`–`4` | pick a multiple-choice answer |
-| `Enter` | check what you typed / next question |
+| `Enter` | check what you typed / next question / next set from the results screen |
 | `↑` `↓` | command history in the terminal |
 | `Ctrl-L` | clear the terminal |
 
@@ -176,7 +176,7 @@ assets/js/missions.js   55 Module 1 terminal missions, state-based checking
 assets/js/app.js        game engine: chunking, quizzes, spaced repetition, UI
 ```
 
-Progress is stored in your browser's `localStorage` under `sudolearn.v1`.
+Progress is stored in your browser's `localStorage` under `pathfinder.v1`.
 Nothing leaves the machine.
 
 ---

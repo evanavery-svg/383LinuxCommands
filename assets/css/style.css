@@ -1,5 +1,5 @@
 /* =====================================================================
-   sudo LEARN — terminal styling
+   PATHfinder — terminal styling
    ===================================================================== */
 
 /* ---------- palettes ---------- */
@@ -642,7 +642,7 @@ code,.mono{font-family:var(--font)}
   #boot{padding:6vh 5vw}
   #boot pre{font-size:0;line-height:0}
   #boot pre::before{
-    content:"sudo LEARN\A___________\A\Alinux command trainer\Amodule 1 of 7 · 221 bites";
+    content:"PATHfinder\A══════════\A\Alinux command trainer\Amodule 1 of 7 · 221 bites";
     white-space:pre;font-size:19px;line-height:1.45;letter-spacing:1px;display:block;
   }
   #bootlog{font-size:12px}

@@ -1,8 +1,9 @@
 /* =====================================================================
-   sudo LEARN — game engine
+   PATHfinder — game engine
    ===================================================================== */
 
-const SAVE_KEY = 'sudolearn.v1';
+const SAVE_KEY = 'pathfinder.v1';
+const OLD_SAVE_KEYS = ['sudolearn.v1'];      // pre-0.6 name; read once, then migrate
 const XP_PER_LEVEL = 250;
 const RANKS = ['Guest','Novice','User','Power User','Scripter','Sysadmin','Kernel Hacker','root'];
 
@@ -21,7 +22,21 @@ const DEFAULTS = {
 let P = load();
 function load() {
   try {
-    const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    let stored = localStorage.getItem(SAVE_KEY);
+    if (stored === null) {
+      /* Renamed in 0.6. Carry a pre-0.6 save over rather than orphaning it —
+         the next save() writes it under the new key. */
+      for (const k of OLD_SAVE_KEYS) {
+        const prev = localStorage.getItem(k);
+        if (prev === null) continue;
+        stored = prev;
+        /* Write through and drop the old key now, so the migration does not
+           depend on the user happening to trigger a save this session. */
+        try { localStorage.setItem(SAVE_KEY, prev); localStorage.removeItem(k); } catch {}
+        break;
+      }
+    }
+    const raw = JSON.parse(stored || '{}');
     return { ...structuredClone(DEFAULTS), ...raw, settings: { ...DEFAULTS.settings, ...(raw.settings||{}) } };
   } catch { return structuredClone(DEFAULTS); }
 }
@@ -214,12 +229,12 @@ const TERM_KEYS = [
 
 /* ---------------- boot ---------------- */
 const BOOT_LINES = [
-  `[  <b>OK</b>  ] Started Command Practice Daemon (sudo LEARN v${VERSION})`,
+  `[  <b>OK</b>  ] Started Command Practice Daemon (PATHfinder v${VERSION})`,
   `[  <b>OK</b>  ] Mounted /usr/share/curriculum (Module 1, ${ALL_ITEMS.length} commands)`,
   '[  <b>OK</b>  ] Reached target Multi-User System',
   '[  <b>OK</b>  ] Loaded student progress from localStorage',
   '',
-  'sudolearn login: <span style="color:var(--fg)">student</span>',
+  'pathfinder login: <span style="color:var(--fg)">student</span>',
   'Password: <span style="color:var(--fg)">••••••••</span>',
   '',
   'Last login: just now on tty1'
@@ -605,6 +620,7 @@ function renderChunkCard(s) {
     </div>`;
 
   const input = el('cardin'), fb = el('cardfb'), tbox = el('tbox'), next = s.querySelector('[data-next]');
+  L.guard = false;                  // this card can be advanced away from once
   if (!typed) {
     input.focus();
     let tries = 0;
@@ -612,8 +628,7 @@ function renderChunkCard(s) {
       const val = input.value;
       if (!val.trim()) return;
       if (checkTyped(it, val)) {
-        if (L.pending) return;
-        L.pending = true;
+        if (L.typed[L.i]) return;       // already accepted; ignore repeat keys
         L.typed[L.i] = true;
         awardXP(3); save();
         el('typeit').classList.add('ok');
@@ -623,7 +638,13 @@ function renderChunkCard(s) {
         next.disabled = false;
         next.textContent = last ? 'Quick check →' : 'Got it →';
         renderStatusbar();                      // show the XP straight away
-        setTimeout(() => { L.pending = false; if (A.learn === L) advanceChunk(); }, 700);  // they may have navigated away
+        /* Disabling the input drops focus to <body>, which used to let a second
+           Enter reach the global handler and click "Got it" while the timer below
+           was still pending — advancing twice and skipping the next card. Parking
+           focus on the button means a second Enter just presses it, and
+           advanceChunk's guard makes that a no-op against the timer. */
+        next.focus();
+        L.timer = setTimeout(() => { if (A.learn === L) advanceChunk(); }, 700);
       } else {
         tries++;
         tbox.classList.remove('good'); tbox.classList.add('bad');
@@ -634,7 +655,10 @@ function renderChunkCard(s) {
         input.select();
       }
     };
-    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submit(); } };
+    input.onkeydown = e => {
+      if (e.key !== 'Enter' || e.repeat) return;
+      e.preventDefault(); e.stopPropagation(); submit();
+    };
   }
   next.onclick = advanceChunk;
   s.querySelector('[data-prev]').onclick = () => { if (L.i>0) { L.i--; render(); } };
@@ -645,6 +669,10 @@ function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 
 function advanceChunk() {
   const L = A.learn;
+  if (!L || L.guard) return;      // one advance per card, whoever asks first
+  L.guard = true;
+  clearTimeout(L.timer);          // cancel the auto-advance still in flight
+  L.timer = null;
   if (L.i < L.items.length - 1) { L.i++; render(); return; }
   // finished the cards -> quick check on exactly these items
   const ids = shuffle(L.items.map(i => i.id));
@@ -734,7 +762,10 @@ function renderQuestion(s) {
     const submit = () => answer(checkTyped(item, input.value), input.value);
     el('tgo').onclick = submit;
     el('tskip').onclick = () => answer(false, '');
-    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submit(); } };
+    input.onkeydown = e => {
+      if (e.key !== 'Enter' || e.repeat) return;
+      e.preventDefault(); e.stopPropagation(); submit();
+    };
   } else {
     body.innerHTML = `<div class="opts">${q.options.map((o,i) =>
       `<button class="opt" data-i="${i}"><span class="n">${i+1}</span><span>${esc(o.label)}</span></button>`).join('')}</div>`;
@@ -807,8 +838,8 @@ function renderQuizResult(s) {
           <div class="w">It ${esc(i.what)}.${i.note ? `<span class="n">${esc(i.note)}</span>` : ''}</div></div>`;
       }).join('')}</div>` : ''}
     <div class="row" style="margin-top:18px">
-      ${Q.opt.chunk ? '<button class="btn primary" data-nextset>▶ Next set</button>'
-                    : '<button class="btn primary" data-again>Drill again</button>'}
+      ${Q.opt.chunk ? '<button class="btn primary" data-enter data-nextset>▶ Next set</button>'
+                    : '<button class="btn primary" data-enter data-again>Drill again</button>'}
       <button class="btn" data-redo>↻ Retry all ${Q.ids.length}</button>
       ${Q.wrong.length ? `<button class="btn" data-fix>Retry just the ${[...new Set(Q.wrong)].length} missed</button>` : ''}
       ${Q.opt.chunk ? '<button class="btn" data-path>Back to the path</button>' : ''}
@@ -826,6 +857,8 @@ function renderQuizResult(s) {
     if (nx) startChunk(nx.lesson.id, nx.n); else go('learn', 'mod' + mod);
   };
   s.querySelector('[data-home]').onclick = () => go('home');
+  const primary = s.querySelector('[data-enter]');
+  if (primary) primary.focus();     // so Enter carries straight on to the next set
   A.quiz = null;
 }
 
@@ -1045,7 +1078,7 @@ function renderProgress(s) {
 
   const days = []; for (let i = 34; i >= 0; i--) days.push(new Date(Date.now() - i*864e5).toISOString().slice(0,10));
 
-  s.innerHTML = prompt('cat ~/.sudolearn/progress') + `
+  s.innerHTML = prompt('cat ~/.pathfinder/progress') + `
     <h1>Progress</h1>
     <div class="grid g3" style="margin-bottom:6px">
       <div class="stat"><div class="k">Rank</div><div class="v">${rank()}</div><div class="muted" style="font-size:12px">level ${level()}</div></div>
@@ -1138,7 +1171,7 @@ function openSettings() {
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Keyboard</h3>
     <p class="muted" style="font-size:12px">1–6 switch tabs · 1–4 pick an answer · Enter continues · Esc goes back · Ctrl-L clears the terminal</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">About</h3>
-    <p class="muted" style="font-size:12px">sudo LEARN v${VERSION} — ${READY_MODULES.length} of ${MODULES.length} modules loaded.<br>
+    <p class="muted" style="font-size:12px">PATHfinder v${VERSION} — ${READY_MODULES.length} of ${MODULES.length} modules loaded.<br>
       &copy; ${new Date().getFullYear()} ${esc(COPYRIGHT_HOLDER)}. All rights reserved.</p>
     <div class="row" style="margin-top:8px"><button class="btn" data-changelog>View changelog</button></div>
     <div class="row" style="margin-top:18px"><button class="btn primary" data-close>Close</button></div>
@@ -1206,7 +1239,7 @@ function openChangelog() {
   d.innerHTML = `<div class="inner">
     <h2>Changelog</h2>
     <p class="muted" style="font-size:12.5px;margin-top:-6px">
-      sudo LEARN v${VERSION} · ${MODULES.length}-module course ·
+      PATHfinder v${VERSION} · ${MODULES.length}-module course ·
       ${READY_MODULES.length} module${READY_MODULES.length===1?'':'s'} loaded so far</p>
     ${CHANGELOG.map(r => `<div class="release">
         <h3>v${esc(r.version)} <span class="muted">· ${esc(r.date)}</span></h3>
@@ -1233,6 +1266,7 @@ function openChangelog() {
 
 /* ---------------- keyboard ---------------- */
 document.addEventListener('keydown', e => {
+  if (e.repeat) return;             // holding a key must not fire it over and over
   const ae = document.activeElement;
   const typing = /^(INPUT|TEXTAREA)$/.test(ae?.tagName);
   /* a focused button already fires its own click on Enter — stepping in here
@@ -1249,7 +1283,8 @@ document.addEventListener('keydown', e => {
   if (typing) return;
   if (e.key === 'Enter') {
     if (onButton) return;
-    const n = el('qnext') || document.querySelector('[data-next]:not([disabled])');
+    const n = el('qnext')
+           || document.querySelector('[data-enter]:not([disabled]), [data-next]:not([disabled])');
     if (n) { e.preventDefault(); n.click(); }
     return;
   }

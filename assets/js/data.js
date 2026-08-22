@@ -1,5 +1,5 @@
 /* =====================================================================
-   sudo LEARN  —  command curriculum
+   PATHfinder  —  command curriculum
    ---------------------------------------------------------------------
    Every entry is one "bite". Keep bites small: one idea each.
      id    unique key (used for mastery tracking in localStorage)
@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.5';
+const VERSION = '0.6';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.6', date:'2026-08-20', title:'Now called PATHfinder, and Enter behaves',
+    notes:[
+      'Renamed from sudo LEARN to PATHfinder \u2014 a $PATH pun, and the course is already laid out as a path of steps. Your progress carries over automatically.',
+      'Fixed: pressing Enter could skip straight past a card you had not typed yet. A second Enter during the brief pause after a correct answer advanced twice \u2014 once from the button, once from the timer.',
+      'Holding Enter down no longer fires over and over.',
+      'Enter now works on the results screen too: finish a set and press Enter to go straight into the next one.'
+    ] },
   { version:'0.5', date:'2026-08-20', title:'Built for a phone as well as a desktop',
     notes:[
       'Typing no longer zooms the page on iPhone \u2014 every input is 16px on touch, with autocorrect and autocapitalise off and a Go key on the keyboard.',
