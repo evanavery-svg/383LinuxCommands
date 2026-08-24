@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.7';
+const VERSION = '0.8';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.8', date:'2026-08-20', title:'Build the command, and sit a mock exam',
+    notes:[
+      'New: Build the command. You are given a goal and write the whole line — flags, paths and all. Marked on what the command actually does, not on its text, so any line that gets there counts.',
+      '36 build challenges across Module 1, each crediting every command it exercises.',
+      'New: Mock exam. A timed paper, typed answers only, no multiple choice, no hints and no feedback until you hand it in. Skip a question and it comes back at the end.',
+      'The report grades you, ranks your topics worst-first, lists every miss with what you wrote, and drills them in one click. Past papers are kept so you can watch the score climb.'
+    ] },
   { version:'0.7', date:'2026-08-20', title:'Finish a topic and it actually says 100%',
     notes:[
       'The percentage on a topic is now the average of your set scores, so finishing every set at 100% reads 100%. It used to show spaced-repetition depth, which needs each card right on five separate days and could never reach 100% just by finishing.',

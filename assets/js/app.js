@@ -169,6 +169,47 @@ function checkTyped(item, input) {
   return accepted(item).some(a => canon(a) === canon(got));
 }
 
+/* ---------------- building whole command lines ----------------
+   Graded by outcome, not by text: your line and the model answer each run in
+   their own throwaway shell, and we compare what they printed and what they
+   left behind on disk. So any route that genuinely achieves the goal passes —
+   `ls -ltr` and `ls -rlt` and `ls -l -t -r` are all simply correct. A `must`
+   pattern is added only where the wording asks for a specific technique that
+   output alone cannot distinguish (octal vs symbolic, say). */
+
+function outText(blocks) {
+  return blocks.map(o => {
+    switch (o.t) {
+      case 'ls':     return 'ls|' + o.s + o.name;
+      case 'lsgrid': return 'grid|' + o.items.map(i => i.kind + ':' + i.name).join(' ');
+      case 'app':    return 'app|' + JSON.stringify(o);
+      default:       return (o.t || '') + '|' + (o.s ?? '');
+    }
+  }).join('\n');
+}
+/* key order follows creation order, so mkdir a; mkdir b and mkdir b; mkdir a
+   would serialise differently — sort so only the content matters */
+function fsSnapshot(node) {
+  if (!node) return 'null';
+  const base = `${node.type},${node.mode},${node.owner},${node.group},${node.target || ''}`;
+  if (node.type !== 'dir') return base + ',' + (node.content || '');
+  return base + '{' + Object.keys(node.children).sort()
+    .map(k => k + ':' + fsSnapshot(node.children[k])).join(',') + '}';
+}
+function runIsolated(line) {
+  const sh = new Shell();
+  let out = [];
+  try { out = sh.run(line) || []; } catch { return null; }
+  return { out: outText(out), fs: fsSnapshot(sh.root) };
+}
+function gradeBuild(task, line) {
+  if (!line || !line.trim()) return false;
+  if (task.must && !task.must.test(line.trim())) return false;
+  const mine = runIsolated(line), model = runIsolated(task.expect);
+  if (!mine || !model) return false;
+  return mine.out === model.out && mine.fs === model.fs;
+}
+
 /* ---------------- question generator ---------------- */
 function distractors(item, n) {
   const sameLesson = ALL_ITEMS.filter(i => i.lesson === item.lesson && i.id !== item.id);
@@ -217,7 +258,10 @@ const A = {
   mission: null,
   missTries: 0,
   histIdx: -1,
-  combo: 0
+  combo: 0,
+  exam: null,
+  examTimer: null,
+  examCfg: { count: 20, mins: 20 }
 };
 
 const TABS = [
@@ -405,6 +449,10 @@ function renderModuleHome(s, num) {
         <p>${due.length ? 'Commands that are starting to fade.' : 'Nothing fading yet.'}</p></button>
       <button class="card" data-act="terminal"><h3>🖥️ Missions</h3>
         <p>${solved}/${missions.length} solved in the practice terminal.</p></button>
+      <button class="card" data-act="build"><h3>🔧 Build the command</h3>
+        <p>Write whole command lines from a goal, marked on what they do.</p></button>
+      <button class="card" data-act="exam"><h3>📝 Mock exam</h3>
+        <p>Timed, typed, no hints — then a report of what to study.</p></button>
     </div>
 
     <h2>Topics in this module</h2>
@@ -429,6 +477,10 @@ function renderModuleHome(s, num) {
   s.querySelector('[data-act="drill"]').onclick = () => startDrill(pickAdaptive(10));
   s.querySelector('[data-act="review"]').onclick = () => { if (due.length) startDrill(sample(due, Math.min(12, due.length))); };
   s.querySelector('[data-act="terminal"]').onclick = () => go('terminal');
+  s.querySelector('[data-act="exam"]').onclick = () => go('drill', 'exam');
+  s.querySelector('[data-act="build"]').onclick = () =>
+    startDrill(shuffle(BUILD_TASKS.filter(t => t.mod === num).map(t => 'build:' + t.id)).slice(0, 10),
+               { title:'Build the command' });
   s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => go('learn', b.dataset.cat));
 }
 
@@ -693,6 +745,8 @@ function advanceChunk() {
 
 /* ---------------- DRILL / QUIZ ---------------- */
 function renderDrill(s) {
+  if (A.exam) return renderExam(s);
+  if (A.view === 'exam') return renderExamSetup(s);
   if (A.quiz) return renderQuestion(s);
   const due = dueItems();
   s.innerHTML = prompt('./drill --pick-a-mode') + `
@@ -700,6 +754,14 @@ function renderDrill(s) {
     <p class="lead">Questions adapt to you: new commands come as multiple choice, and once you are getting them right
       you have to type them from memory.</p>
     <div class="grid g2">
+      <button class="card hi" data-exam><h3>📝 Mock exam</h3>
+        <p>A timed paper: typed answers only, no hints, no feedback until you hand it in — then a report
+          of what to study. The closest thing here to sitting the real test.</p>
+        <div class="meta"><span>exam conditions</span><span>${(P.exams||[]).length ? 'best ' + Math.max(...P.exams.map(x=>x.pct)) + '%' : 'not taken yet'}</span></div></button>
+      <button class="card hi" data-build><h3>🔧 Build the command</h3>
+        <p>Given a goal, write the whole line — flags, paths and all. Marked on what it actually does,
+          so any command that gets there counts.</p>
+        <div class="meta"><span>${BUILD_TASKS.length} challenges</span><span>composition, not recall</span></div></button>
       <button class="card" data-n="10"><h3>⚡ Quick drill · 10</h3>
         <p>Weighted towards your weak spots across everything you have seen.</p>
         <div class="meta"><span>adaptive</span><span>~3 min</span></div></button>
@@ -723,6 +785,9 @@ function renderDrill(s) {
           <div class="meta"><span>${ALL_ITEMS.filter(i=>i.cat===c.id).length} bites</span>
           <span>${scoreOf(allSets(mo.num).filter(x => x.cat === c.id))}%</span></div></button>`).join('')}
       </div>`).join('')}`;
+  s.querySelector('[data-exam]').onclick = () => go('drill', 'exam');
+  s.querySelector('[data-build]').onclick = () =>
+    startDrill(shuffle(BUILD_TASKS.map(t => 'build:' + t.id)).slice(0, 10), { title:'Build the command' });
   s.querySelectorAll('[data-n]').forEach(b => b.onclick = () => startDrill(pickAdaptive(+b.dataset.n)));
   s.querySelector('[data-due]').onclick = () => { if (due.length) startDrill(sample(due, Math.min(15,due.length))); };
   s.querySelector('[data-type]').onclick = () => startDrill(pickAdaptive(15), { force:'type', title:'Typing drill' });
@@ -742,11 +807,20 @@ function startDrill(ids, opt = {}) {
   A.quiz = { ids, i:0, right:0, wrong:[], answered:false, opt, title: opt.title || 'Drill' };
   render();
 }
+const isBuild = id => typeof id === 'string' && id.startsWith('build:');
+const buildOf  = id => BUILD_BY_ID[id.slice(6)];
+
 function renderQuestion(s) {
   const Q = A.quiz;
   if (Q.i >= Q.ids.length) return renderQuizResult(s);
-  const item = ITEM_BY_ID[Q.ids[Q.i]];
-  if (!Q.q || Q.qFor !== Q.i) { Q.q = makeQuestion(item, Q.opt.force); Q.qFor = Q.i; Q.answered = false; }
+  const entry = Q.ids[Q.i];
+  const task = isBuild(entry) ? buildOf(entry) : null;
+  const item = task ? null : ITEM_BY_ID[entry];
+  if (!Q.q || Q.qFor !== Q.i) {
+    Q.q = task ? { type:'build', task, prompt:'Write a command line that does this:' }
+               : makeQuestion(item, Q.opt.force);
+    Q.qFor = Q.i; Q.answered = false;
+  }
   const q = Q.q;
   const pct = Math.round(Q.i / Q.ids.length * 100);
 
@@ -758,12 +832,28 @@ function renderQuestion(s) {
     </div>
     <div class="kicker">${esc(Q.title)}</div>
     <p class="qprompt">${q.prompt}</p>
+    ${q.type === 'build' ? `<div class="goalbox">${esc(q.task.goal)}</div>` : ''}
     <div id="qbody"></div>
     <div id="qverdict"></div>
-    <p class="muted center" style="font-size:11.5px;margin-top:14px">${q.type==='type' ? 'press Enter to answer' : 'or press keys 1–4'}</p>`;
+    <p class="muted center" style="font-size:11.5px;margin-top:14px">${q.type==='mcq-what'||q.type==='mcq-cmd' ? 'or press keys 1–4' : 'press Enter to answer'}</p>`;
 
   const body = el('qbody');
-  if (q.type === 'type') {
+  if (q.type === 'build') {
+    body.innerHTML = `<div class="typebox"><span class="ps">student@fedora:~$</span>
+        <input id="tin" ${TYPING_ATTRS} enterkeyhint="go" placeholder="type the whole command…"></div>
+      <div class="row"><button class="btn primary" id="tgo">Run it</button>
+        <button class="btn" id="tskip">I don't know</button></div>
+      <p class="muted" style="font-size:12px;margin-top:10px">Judged on what it actually does, so any
+        line that achieves the goal counts — flag order and spacing do not matter.</p>`;
+    const input = el('tin'); input.focus();
+    const submit = () => answer(gradeBuild(q.task, input.value), input.value);
+    el('tgo').onclick = submit;
+    el('tskip').onclick = () => answer(false, '');
+    input.onkeydown = e => {
+      if (e.key !== 'Enter' || e.repeat) return;
+      e.preventDefault(); e.stopPropagation(); submit();
+    };
+  } else if (q.type === 'type') {
     body.innerHTML = `<div class="typebox"><span class="ps">student@fedora:~$</span>
         <input id="tin" ${TYPING_ATTRS} enterkeyhint="go" placeholder="${q.placeholder}"></div>
       <div class="row"><button class="btn primary" id="tgo">Answer</button>
@@ -797,19 +887,29 @@ function answer(ok, given) {
   const Q = A.quiz;
   if (Q.answered) return;
   Q.answered = true;
-  const item = ITEM_BY_ID[Q.ids[Q.i]];
-  scoreAnswer(item.id, ok);
-  if (ok) Q.right++; else Q.wrong.push(item.id);
+  const entry = Q.ids[Q.i];
+  const task = isBuild(entry) ? buildOf(entry) : null;
+  const item = task ? null : ITEM_BY_ID[entry];
+
+  /* a build task exercises several commands at once, so credit them all */
+  if (task) task.teach.forEach(id => scoreAnswer(id, ok));
+  else scoreAnswer(item.id, ok);
+  if (ok) Q.right++; else Q.wrong.push(entry);
 
   const cheers = ['Nice.','Correct.','Got it.','Yes.','That is the one.','Spot on.'];
   const head = ok ? `✓ ${cheers[Math.floor(Math.random()*cheers.length)]}${A.combo >= 3 ? `  🔥 ${A.combo} in a row` : ''}`
                   : '✗ Not this time';
+  const explain = task
+    ? `<div>One line that does it: <span class="cmdtag">${esc(task.expect)}</span></div>
+       ${!ok && given ? `<span class="note">You wrote: <span class="mono">${esc(given)}</span></span>` : ''}
+       <span class="note">Uses: ${task.teach.map(id => ITEM_BY_ID[id] ? esc(ITEM_BY_ID[id].cmd) : id).join(' · ')}</span>`
+    : `<div><span class="cmdtag">${esc(item.cmd)}</span> — it ${esc(item.what)}.</div>
+       ${!ok && given ? `<span class="note">You said: <span class="mono">${esc(given)}</span></span>` : ''}
+       ${item.ex ? `<span class="note">Example: <span class="mono">${esc(item.ex)}</span></span>` : ''}
+       ${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}`;
   el('qverdict').innerHTML = `<div class="verdict ${ok?'ok':'no'}">
       <h4>${head}</h4>
-      <div><span class="cmdtag">${esc(item.cmd)}</span> — it ${esc(item.what)}.</div>
-      ${!ok && given ? `<span class="note">You said: <span class="mono">${esc(given)}</span></span>` : ''}
-      ${item.ex ? `<span class="note">Example: <span class="mono">${esc(item.ex)}</span></span>` : ''}
-      ${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}
+      ${explain}
     </div>
     <button class="btn primary" id="qnext">${Q.i === Q.ids.length-1 ? 'See results →' : 'Next question →'} <span class="muted">Enter</span></button>`;
   el('qnext').focus();
@@ -843,7 +943,11 @@ function renderQuizResult(s) {
       <div class="goalline"><div class="bar" style="flex:1"><i style="width:${goalPct()}%"></i></div>
         <span class="muted" style="font-size:12px;white-space:nowrap">${todayXP()}/${P.goal} XP today</span></div></div>
     ${Q.wrong.length ? `<h2>Worth another look</h2>
-      <div class="reflist">${[...new Set(Q.wrong)].map(id => { const i = ITEM_BY_ID[id];
+      <div class="reflist">${[...new Set(Q.wrong)].map(id => {
+        if (isBuild(id)) { const t = buildOf(id);
+          return `<div class="refrow"><div class="c">${esc(t.expect)}</div>
+            <div class="w">${esc(t.goal)}<span class="n">Uses: ${t.teach.map(x => ITEM_BY_ID[x] ? esc(ITEM_BY_ID[x].cmd) : x).join(' · ')}</span></div></div>`; }
+        const i = ITEM_BY_ID[id];
         return `<div class="refrow"><div class="c">${esc(i.cmd)}</div>
           <div class="w">It ${esc(i.what)}.${i.note ? `<span class="n">${esc(i.note)}</span>` : ''}</div></div>`;
       }).join('')}</div>` : ''}
@@ -870,6 +974,234 @@ function renderQuizResult(s) {
   const primary = s.querySelector('[data-enter]');
   if (primary) primary.focus();     // so Enter carries straight on to the next set
   A.quiz = null;
+}
+
+/* ---------------- EXAM ----------------
+   Deliberately unlike Drill: a fixed set, a clock, no hints, no feedback
+   until the end, and a report that names what to study. */
+
+const EXAM_PRESETS = { questions:[20, 40], minutes:[0, 10, 20, 30] };
+
+function examPool(modNum, count) {
+  const items = ALL_ITEMS.filter(i => i.mod === modNum).map(i => i.id);
+  const builds = BUILD_TASKS.filter(t => t.mod === modNum).map(t => 'build:' + t.id);
+  /* about a fifth build-the-command, the rest recall — enough to test
+     composition without the paper being all typing */
+  const nBuild = Math.min(builds.length, Math.max(2, Math.round(count * 0.2)));
+  return shuffle([...sample(builds, nBuild), ...sample(items, count - nBuild)]);
+}
+
+function startExam(modNum, count, minutes) {
+  clearInterval(A.examTimer);
+  A.tab = 'drill';
+  A.quiz = null;
+  A.combo = 0;
+  A.exam = {
+    mod: modNum, ids: examPool(modNum, count), i: 0,
+    answers: {},                     // entry id -> { given, ok }
+    skipped: 0,
+    limit: minutes * 60,
+    started: Date.now(),
+    done: false
+  };
+  if (minutes) A.examTimer = setInterval(tickExam, 1000);
+  render();
+}
+function examLeft() {
+  const E = A.exam;
+  return E.limit ? Math.max(0, E.limit - Math.floor((Date.now() - E.started) / 1000)) : null;
+}
+function tickExam() {
+  const E = A.exam;
+  if (!E || E.done) { clearInterval(A.examTimer); return; }
+  const left = examLeft();
+  const lab = el('examclock');
+  if (lab) {
+    lab.textContent = fmtSecs(left);
+    lab.classList.toggle('low', left <= 60);
+  }
+  if (left === 0) finishExam();
+}
+function fmtSecs(n) {
+  if (n === null) return 'no limit';
+  return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+}
+function finishExam() {
+  clearInterval(A.examTimer);
+  if (A.exam) { A.exam.done = true; A.exam.took = Math.round((Date.now() - A.exam.started) / 1000); }
+  if (A.tab === 'drill') render();      // otherwise the report waits until you come back
+}
+
+function renderExam(s) {
+  const E = A.exam;
+  if (E.done) return renderExamResult(s);
+  if (E.i >= E.ids.length) return finishExam();
+
+  const entry = E.ids[E.i];
+  const task = isBuild(entry) ? buildOf(entry) : null;
+  const item = task ? null : ITEM_BY_ID[entry];
+  if (!E.q || E.qFor !== E.i) {
+    /* no multiple choice in an exam: recall it or write it */
+    E.q = task ? { type:'build', task } : makeQuestion(item, 'type');
+    E.qFor = E.i; E.locked = false;
+  }
+  const q = E.q;
+  const answered = Object.keys(E.answers).length;
+
+  s.innerHTML = `
+    <div class="cardtop">
+      <button class="x" data-quit title="Abandon this exam">✕</button>
+      <div class="bar" style="flex:1"><i style="width:${Math.round(answered / E.ids.length * 100)}%"></i></div>
+      <span class="examclock ${E.limit && examLeft() <= 60 ? 'low' : ''}" id="examclock">${fmtSecs(examLeft())}</span>
+    </div>
+    <div class="kicker">Exam · question ${E.i + 1} of ${E.ids.length} · ${answered} answered</div>
+    <p class="qprompt">${task ? 'Write a command line that does this:' : q.prompt}</p>
+    ${task ? `<div class="goalbox">${esc(task.goal)}</div>` : ''}
+    <div class="typebox"><span class="ps">${task ? 'student@fedora:~$' : '?'}</span>
+      <input id="ein" ${TYPING_ATTRS} enterkeyhint="go" placeholder="${task ? 'type the whole command…' : (q.placeholder || 'your answer…')}"></div>
+    <div class="row">
+      <button class="btn primary" id="ego">Answer</button>
+      <button class="btn" id="eskip">Skip for now</button>
+      <span class="spacer"></span>
+      <button class="btn ghost sm" id="eend">Finish and mark</button>
+    </div>
+    <p class="muted center" style="font-size:11.5px;margin-top:14px">No feedback until the end — like the real thing.</p>`;
+
+  const input = el('ein'); input.focus();
+  const submit = () => {
+    if (E.locked) return;
+    E.locked = true;
+    const given = input.value;
+    const ok = task ? gradeBuild(task, given) : checkTyped(item, given);
+    E.answers[entry] = { given, ok, task: !!task };
+    if (task) task.teach.forEach(id => scoreAnswer(id, ok));
+    else scoreAnswer(item.id, ok);
+    A.combo = 0;                       // no streak theatre mid-exam
+    E.i++;
+    render();
+  };
+  el('ego').onclick = submit;
+  el('eskip').onclick = () => {
+    /* send it to the back of the paper rather than losing it */
+    if (E.i < E.ids.length - 1) { E.ids.push(E.ids.splice(E.i, 1)[0]); E.skipped++; E.q = null; render(); }
+    else { E.i++; render(); }
+  };
+  el('eend').onclick = finishExam;
+  input.onkeydown = e => {
+    if (e.key !== 'Enter' || e.repeat) return;
+    e.preventDefault(); e.stopPropagation(); submit();
+  };
+  s.querySelector('[data-quit]').onclick = () => {
+    if (confirm('Abandon this exam? Nothing will be recorded.')) {
+      clearInterval(A.examTimer); A.exam = null; go('drill');
+    }
+  };
+}
+
+function renderExamResult(s) {
+  const E = A.exam;
+  const entries = Object.entries(E.answers);
+  const right = entries.filter(([, a]) => a.ok).length;
+  const total = E.ids.length;
+  const pct = total ? Math.round(right / total * 100) : 0;
+  const unanswered = total - entries.length;
+
+  if (!E.recorded) {
+    E.recorded = true;
+    P.exams = P.exams || [];
+    P.exams.unshift({ date: today(), pct, right, total, secs: E.took || 0, mod: E.mod });
+    P.exams = P.exams.slice(0, 20);
+    awardXP(Math.round(pct / 2));
+    save(); checkBadges();
+  }
+
+  /* which topics let you down */
+  const byCat = {};
+  entries.forEach(([id, a]) => {
+    const cats = isBuild(id) ? [buildOf(id).cat] : [ITEM_BY_ID[id].cat];
+    cats.forEach(c => { byCat[c] = byCat[c] || { right:0, total:0 };
+      byCat[c].total++; if (a.ok) byCat[c].right++; });
+  });
+  const missed = entries.filter(([, a]) => !a.ok).map(([id]) => id);
+  const grade = pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F';
+  const mood = pct >= 80 ? '🎓' : pct >= 60 ? '📗' : '📕';
+
+  s.innerHTML = prompt('./exam --report') + `
+    <div class="center" style="padding:6px 0 4px">
+      <div class="big-emoji">${mood}</div>
+      <h1 style="margin-top:10px">${right} / ${total} — ${pct}%<span class="grade">${grade}</span></h1>
+      <p class="lead">${fmtSecs(E.took || 0)} taken${E.skipped ? ` · ${E.skipped} skipped and returned to` : ''}${
+        unanswered ? ` · <b style="color:var(--warn)">${unanswered} left unanswered</b>` : ''}</p>
+    </div>
+
+    <h2>By topic</h2>
+    ${Object.entries(byCat).sort((a,b) => (a[1].right/a[1].total) - (b[1].right/b[1].total)).map(([c, v]) => {
+      const cat = CURRICULUM.find(x => x.id === c); const p = Math.round(v.right / v.total * 100);
+      return `<div class="masterrow"><div class="nm">${cat ? cat.icon + ' ' + esc(cat.name) : c}</div>
+        <div class="bar"><i style="width:${p}%"></i></div>
+        <div class="pc">${v.right}/${v.total}</div></div>`;
+    }).join('')}
+
+    ${missed.length ? `<h2>Every one you missed</h2>
+      <div class="reflist">${missed.map(id => {
+        const a = E.answers[id];
+        const shown = a.given ? `<span class="n">You wrote: <span class="mono">${esc(a.given)}</span></span>` : '<span class="n">Left blank</span>';
+        if (isBuild(id)) { const t = buildOf(id);
+          return `<div class="refrow"><div class="c">${esc(t.expect)}</div>
+            <div class="w">${esc(t.goal)}${shown}</div></div>`; }
+        const i = ITEM_BY_ID[id];
+        return `<div class="refrow"><div class="c">${esc(i.cmd)}</div>
+          <div class="w">It ${esc(i.what)}.${shown}</div></div>`;
+      }).join('')}</div>` : '<p class="lead">Nothing missed. That is a clean paper.</p>'}
+
+    <div class="row" style="margin-top:18px">
+      ${missed.length ? `<button class="btn primary" data-enter data-fix>Drill the ${missed.length} you missed</button>`
+                      : '<button class="btn primary" data-enter data-again>Another exam</button>'}
+      <button class="btn" data-again2>Another exam</button>
+      <button class="btn ghost" data-home>← home</button>
+    </div>`;
+
+  const fix = s.querySelector('[data-fix]');
+  if (fix) fix.onclick = () => { A.exam = null; startDrill(shuffle(missed), { title:'Exam misses', replay:true }); };
+  const again = () => { A.exam = null; go('drill'); };
+  const a1 = s.querySelector('[data-again]'); if (a1) a1.onclick = again;
+  s.querySelector('[data-again2]').onclick = again;
+  s.querySelector('[data-home]').onclick = () => { A.exam = null; go('home'); };
+  const primary = s.querySelector('[data-enter]'); if (primary) primary.focus();
+}
+
+function renderExamSetup(s) {
+  const mo = READY_MODULES[0];
+  const hist = (P.exams || []);
+  s.innerHTML = prompt('./exam --setup') + `
+    <h1>Mock exam</h1>
+    <p class="lead">A fixed paper against the clock. Every answer typed out, no multiple choice, no hints,
+      and no feedback until you hand it in — then a report telling you exactly what to study.</p>
+
+    <h2>How long</h2>
+    <div class="row">${EXAM_PRESETS.questions.map(n =>
+      `<button class="chip ${A.examCfg.count===n?'on':''}" data-count="${n}">${n} questions</button>`).join('')}</div>
+    <div class="row" style="margin-top:8px">${EXAM_PRESETS.minutes.map(m =>
+      `<button class="chip ${A.examCfg.mins===m?'on':''}" data-mins="${m}">${m ? m + ' minutes' : 'no time limit'}</button>`).join('')}</div>
+
+    <div class="row" style="margin-top:20px">
+      <button class="btn primary big" data-enter data-start>▶ Start the exam</button>
+    </div>
+
+    ${hist.length ? `<h2>Past papers</h2>
+      <div class="reflist">${hist.slice(0, 8).map(x =>
+        `<div class="refrow"><div class="c">${x.pct}%</div>
+          <div class="w">${x.right}/${x.total} · ${fmtSecs(x.secs)} · ${esc(x.date)}</div></div>`).join('')}</div>
+      ${hist.length > 1 ? `<p class="muted" style="font-size:12.5px;margin-top:8px">Best ${Math.max(...hist.map(x=>x.pct))}% ·
+        last ${hist[0].pct}% · ${hist.length} taken</p>` : ''}` : ''}
+
+    <div class="row" style="margin-top:18px"><button class="btn ghost sm" data-back>← back to drills</button></div>`;
+
+  s.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { A.examCfg.count = +b.dataset.count; render(); });
+  s.querySelectorAll('[data-mins]').forEach(b => b.onclick = () => { A.examCfg.mins = +b.dataset.mins; render(); });
+  s.querySelector('[data-start]').onclick = () => startExam(mo.num, A.examCfg.count, A.examCfg.mins);
+  s.querySelector('[data-back]').onclick = () => { A.view = null; render(); };
+  s.querySelector('[data-start]').focus();
 }
 
 /* ---------------- TERMINAL ---------------- */
@@ -1110,6 +1442,14 @@ function renderProgress(s) {
     <div class="heat">${days.map(d => { const xp = P.days[d]||0;
       return `<i class="${xp>=150?'l3':xp>=60?'l2':xp>0?'l1':''}" title="${d}: ${xp} XP"></i>`; }).join('')}</div>
 
+    ${(P.exams||[]).length ? `<h2>Mock exams</h2>
+    <p class="lead" style="margin-bottom:10px">Timed papers under exam conditions — the best read on whether you are ready.</p>
+    ${P.exams.slice(0, 6).map(x => `<div class="masterrow"><div class="nm">${esc(x.date)} · ${fmtSecs(x.secs)}</div>
+      <div class="bar"><i style="width:${x.pct}%"></i></div>
+      <div class="pc">${x.pct}%</div></div>`).join('')}
+    <p class="muted" style="font-size:12.5px;margin-top:8px">Best ${Math.max(...P.exams.map(x=>x.pct))}% ·
+      ${P.exams.length} taken · latest ${P.exams[0].pct}%</p>` : ''}
+
     <h2>Score by module</h2>
     <p class="lead" style="margin-bottom:10px">How much of each module you have finished, and how well.
       This is the average of your set scores — the same numbers on the path.</p>
@@ -1288,6 +1628,7 @@ document.addEventListener('keydown', e => {
   /* a focused button already fires its own click on Enter — stepping in here
      as well would advance twice and skip a card */
   const onButton = ae?.tagName === 'BUTTON';
+  if (A.exam && !A.exam.done && e.key !== 'Enter') return;   // an exam owns the keyboard
   if (e.key === 'Escape') {
     const md = document.querySelector('.modal'); if (md) { md.remove(); return; }
     if (A.quiz) { A.quiz = null; render(); return; }

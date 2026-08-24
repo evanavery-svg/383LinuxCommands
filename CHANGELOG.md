@@ -12,6 +12,31 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.8] — 2026-08-20
+
+### Added
+- **Build the command.** A new question type that gives you a goal — *"list /var/log in long
+  format with sizes in K, M or G"* — and asks for the whole line. **36 challenges** across
+  Module 1, in their own drill and mixed into exams.
+
+  They are graded **by outcome, not by text**: your line and a model answer each run in
+  their own throwaway shell, and both the output and the resulting filesystem are compared.
+  So `ls -ltr`, `ls -rlt` and `ls -l -t -r` are all simply correct, and there is no blessed
+  string to guess. A `must` pattern is added only where the wording asks for a technique the
+  outcome cannot reveal — octal versus symbolic `chmod`, or expanding `$HOME` rather than
+  typing the path. Each challenge credits every command it exercises.
+
+- **Mock exam.** A fixed paper against the clock: typed answers only, no multiple choice,
+  no hints, and no feedback until you hand it in. 20 or 40 questions, 10/20/30 minutes or
+  untimed, roughly a fifth of them build-the-command. Skipping sends a question to the back
+  of the paper rather than losing it, and the clock turns red in the last minute.
+
+  The report gives a percentage and a letter grade, ranks your topics worst-first, lists
+  every question you missed alongside what you actually wrote, and drills the misses in one
+  click. Papers are kept in history and shown on the Progress tab and the exam setup screen.
+
+---
+
 ## [0.7] — 2026-08-20
 
 ### Changed
