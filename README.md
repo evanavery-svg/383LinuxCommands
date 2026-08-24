@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.10** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.11** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -40,10 +40,27 @@ percentage — it keeps its own best score on its own bubble. A 71-question roun
 sitting, so it looks after you: switch tabs or press `Esc` and the attempt is parked, with
 the bubble offering to *resume · 8 of 71 answered*. Only the ✕ discards it, and it asks first.
 
+**Every set opens with a briefing** — before the first card you get the lesson's one-line
+idea, the **commands in that set** with what each one does, and **"when you would actually
+use this"**: a worked terminal transcript of the moment you would reach for them. The log
+has just rolled and you need the newest file; the script will not run; the port changed in
+forty places. You see the shape before the detail instead of meeting each command cold.
+Enter starts the set, and briefings can be switched off in settings.
+
 **Learn** — one idea per card: the command, one plain sentence saying what it
 does, a worked example with realistic output, and a "Remember" hook (`-h` only
-matters with `-l`, because only long format prints sizes). Then you **type it
-yourself** at a prompt on the card before moving on — reading a command and
+matters with `-l`, because only long format prints sizes). **Every one of the 221 entries
+has an example** — and for a keystroke that means a before → press → after demo, because
+`dd` has no `$ dd` to show:
+
+```
+cursor on line 2
+BEFORE  one / two / three
+PRESS   dd
+AFTER   one / three
+```
+
+Then you **type it yourself** at a prompt on the card before moving on — reading a command and
 typing one are different skills, and only one of them is what you do in a real
 shell. Get it wrong twice and it shows you the exact text to copy; there is a
 skip link if you would rather just read.
@@ -89,7 +106,8 @@ correct route counts. `cat` a binary and the screen really does fill with garbag
 until you run `reset`.
 
 **Reference** — all 221 entries, searchable by command, description, flag or
-example, each showing your mastery bar.
+example — including the keystroke demos, so searching *delete a word* finds `dW` — each
+showing your mastery bar.
 
 **Two different numbers, kept apart.** Your **score** — on topic cards, the module
 header and the Progress tab — is the average of your set scores, so finishing every set

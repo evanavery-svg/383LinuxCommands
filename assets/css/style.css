@@ -205,8 +205,39 @@ code,.mono{font-family:var(--font)}
   font-size:13px;color:var(--fg);background:var(--bg2);
 }
 .chunknote b{color:var(--warn)}
-.lessonbrief{border-left:3px solid var(--accent);padding:8px 0 8px 14px;margin:0 0 18px;color:var(--dim);font-size:13.5px}
+.lessonbrief{border-left:3px solid var(--accent);padding:8px 0 8px 14px;margin:0 0 18px;color:var(--dim);font-size:13.5px;line-height:1.65}
 .lessonbrief b{color:var(--fg)}
+.lessonbrief i{color:var(--accent2);font-style:normal}
+
+/* ---------- the briefing that opens each set ---------- */
+.briefh{font-size:clamp(18px,3vw,23px);margin:2px 0 14px}
+.brieflist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.briefrow{display:flex;gap:14px;align-items:baseline;background:var(--panel);padding:11px 14px}
+.briefrow .c{flex:0 0 34%;max-width:210px;color:var(--accent);font-weight:700;font-size:14px;word-break:break-word}
+.briefrow .w{flex:1;font-size:13px;color:var(--fg);line-height:1.55}
+.briefrow .seen{color:var(--dim);font-size:11.5px;display:block;margin-top:3px}
+.usebox{margin-top:20px;border:1px solid var(--line);border-radius:9px;background:var(--bg2);padding:15px 17px}
+.usebox h2{margin:0 0 9px;font-size:12px;letter-spacing:.9px;text-transform:uppercase;color:var(--accent2)}
+.usebox summary{cursor:pointer;font-size:12.5px;color:var(--accent2);list-style:none}
+.usebox summary::-webkit-details-marker{display:none}
+.usebox summary::before{content:'▸ ';}
+.usebox[open] summary::before{content:'▾ ';}
+.usebox .scene{margin:0 0 10px;font-size:13.5px;line-height:1.6}
+.usebox .demo{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--accent2);
+  border-radius:6px;padding:11px 13px;font-size:13px;margin:0;white-space:pre-wrap;overflow-x:auto;line-height:1.6}
+.usebox .demo .p{color:var(--accent2)}
+.usebox .demo .o{color:var(--dim);display:block}
+.usebox .point{margin:10px 0 0;font-size:12.5px;color:var(--dim);line-height:1.6}
+
+/* before -> key -> after, the honest "example" for a keystroke */
+.kbdemo{margin-top:12px;border:1px solid var(--line);border-radius:7px;background:var(--bg);padding:10px 12px;font-size:13px}
+.kbdemo .where{display:block;color:var(--dim);font-size:11.5px;margin-bottom:7px}
+.kbdemo .ba,.kbdemo .key{display:flex;gap:10px;align-items:baseline;padding:2px 0}
+.kbdemo .lbl{flex:0 0 46px;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+.kbdemo code{color:var(--fg);white-space:pre-wrap;word-break:break-word}
+.kbdemo .key kbd{background:var(--sel);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+  padding:1px 8px;color:var(--accent);font-family:inherit;font-size:13px}
+.kbdemo .ba:last-child code{color:var(--accent)}
 
 /* ---------- quiz ---------- */
 .qprompt{font-size:16px;margin:6px 0 18px;line-height:1.6}
@@ -506,6 +537,12 @@ code,.mono{font-family:var(--font)}
   .step{width:84px}
   .step .bub{width:44px;height:44px;font-size:14px}
   .step.review{width:100px;padding-left:10px}
+  /* the briefing stacks rather than shrinking the command column to nothing */
+  .briefrow{flex-direction:column;gap:3px}
+  .briefrow .c{flex:none;max-width:none}
+  .usebox{padding:13px 14px}
+  .kbdemo .ba,.kbdemo .key{flex-direction:column;gap:2px}
+  .kbdemo .lbl{flex:none}
   .strip>div{flex:1 1 45%;border-bottom:1px solid var(--line)}
 }
 

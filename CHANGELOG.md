@@ -12,6 +12,42 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.11] — 2026-08-24
+
+### Added
+- **A briefing before every set.** It opens with the lesson's one-line idea, then lists the
+  **commands in that set** with what each one does — so you see the shape before the detail
+  instead of meeting each command cold. Enter starts the set.
+- **“When you would actually use this”** — a worked terminal transcript on every briefing,
+  one per lesson, all 32 written from scratch. Not what a command *means* but the moment you
+  reach for it: the log has just rolled, the script will not run, the port changed in forty
+  places. Shown in full on a lesson's first set, collapsed behind a summary after that.
+- **An example on every single entry.** 98 of the 221 had none. Commands got a real example
+  with realistic output; the **83 keystrokes** got a **before → press → after** demo, which is
+  what an example honestly means for a keystroke:
+
+  ```
+  cursor on line 2
+  BEFORE  one / two / three
+  PRESS   dd
+  AFTER   one / three
+  ```
+- Keystroke demos are searchable in the **Reference** tab too.
+- **Set briefings: on/off** in ⚙ settings, next to Free roam.
+
+### Fixed
+- The one-line `brief` written for each of the 32 lessons — and the CSS to style it — had
+  been in the project since the first release and was **never rendered anywhere**. It is now
+  the first thing you read in each set.
+
+### Notes
+- The briefing is reading, not answering: it scores nothing, marks nothing learned, and does
+  not even write to your save.
+- The scenarios and examples here were written for this app, **not by your instructor** —
+  worth checking anything that matters against your own course notes.
+
+---
+
 ## [0.10] — 2026-08-24
 
 ### Added

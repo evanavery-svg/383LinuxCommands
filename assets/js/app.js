@@ -17,7 +17,7 @@ const DEFAULTS = {
   chunks: {},               // legacy set-completion marks, kept so old saves still read
   reviews: {},              // category id -> best score on that topic's review round
   bestCombo: 0, perfects: 0, goal: 100,
-  settings: { theme:'matrix', crt:true, bite:3, freeroam:false }
+  settings: { theme:'matrix', crt:true, bite:3, freeroam:false, briefs:true }
 };
 
 let P = load();
@@ -755,12 +755,70 @@ function startChunk(lessonId, n) {
   const lesson = LESSONS.find(l => l.id === lessonId);
   const items = chunksOf(lesson)[n];
   A.tab = 'learn';
-  A.learn = { lesson, n, total: chunksOf(lesson).length, items, i: 0, typed: {} };
+  /* every set opens on its briefing — what is coming and why you would reach for it —
+     unless you have turned them off. It is a preamble: it marks nothing. */
+  A.learn = { lesson, n, total: chunksOf(lesson).length, items, i: 0, typed: {},
+              brief: P.settings.briefs !== false };
   render();
+}
+
+/* ---------------- the briefing ----------------
+   Shown before every set: the idea behind the lesson, the commands in THIS set
+   with what each does, and a worked example of when you would actually reach
+   for them. An advance organiser — you meet the shape before the detail.
+   Marks nothing, scores nothing; it is reading, not answering. */
+function renderBriefing(s) {
+  const L = A.learn;
+  const lesson = L.lesson;
+  const firstSet = L.n === 0;                 // the scenario is per lesson, not per set
+  const use = lesson.use;
+
+  const useHtml = !use ? '' : `
+    <p class="scene">${esc(use.scene)}</p>
+    <div class="demo">${use.lines.map(l => l.c
+        ? `<span class="p">$</span> ${esc(l.c)}${l.o ? `\n<span class="o">${esc(l.o)}</span>` : ''}`
+        : `<span class="o">${esc(l.o || '')}</span>`).join('\n')}</div>
+    ${use.point ? `<p class="point">${esc(use.point)}</p>` : ''}`;
+
+  s.innerHTML = `
+    <div class="cardtop">
+      <button class="x" data-exit title="Leave this set">✕</button>
+      <div class="chunkbar">${L.items.map(() => '<i></i>').join('')}</div>
+      <span class="muted" style="font-size:12px;white-space:nowrap">set ${L.n+1} of ${L.total}</span>
+    </div>
+    <div class="kicker">${esc(lesson.catName)} · ${esc(lesson.title)}</div>
+    <h1 class="briefh">Coming up — ${L.items.length} ${L.items.length === 1 ? 'command' : 'commands'}</h1>
+
+    ${lesson.brief ? `<div class="lessonbrief">${lesson.brief}</div>` : ''}
+
+    <div class="brieflist">
+      ${L.items.map(i => `<div class="briefrow">
+          <div class="c">${esc(i.cmd)}</div>
+          <div class="w">${esc(cap(i.what))}${((P.mastery[i.id]||{}).b || 0) >= 4 ? '<span class="seen">★ you know this one</span>' : ''}</div>
+        </div>`).join('')}
+    </div>
+
+    ${!useHtml ? '' : firstSet
+      ? `<div class="usebox"><h2>When you would actually use this</h2>${useHtml}</div>`
+      : `<details class="usebox"><summary>Show the worked example for this lesson again</summary>${useHtml}</details>`}
+
+    <div class="row actionbar" style="margin-top:18px">
+      <span class="spacer"></span>
+      <button class="btn primary big" data-enter data-go>Start the set → <span class="k">Enter</span></button>
+    </div>
+    <p class="muted center" style="font-size:11.5px;margin-top:10px">
+      Briefings can be switched off in ⚙ settings.</p>`;
+
+  const startBtn = s.querySelector('[data-go]');   // not `go` — that is the navigator
+  startBtn.onclick = () => { L.brief = false; render(); };
+  startBtn.focus();
+  /* same exit as the cards behind it */
+  s.querySelector('[data-exit]').onclick = () => go('learn', 'mod' + (lesson.mod || 1));
 }
 
 function renderChunkCard(s) {
   const L = A.learn;
+  if (L.brief) return renderBriefing(s);
   const it = L.items[L.i];
   const box = m(it.id).b;
   const last = L.i === L.items.length - 1;
@@ -780,6 +838,7 @@ function renderChunkCard(s) {
       <p class="what">${esc(cap(it.what))}</p>
       ${it.ex ? `<div class="demo"><span class="p">$</span> ${esc(it.ex)}${
           it.out ? '\n' + `<span class="o">${esc(it.out)}</span>` : ''}</div>` : ''}
+      ${it.demo ? kbDemo(it.demo) : ''}
       ${it.note ? `<div class="chunknote"><b>Remember</b> ${esc(it.note)}</div>` : ''}
     </div>
 
@@ -852,6 +911,16 @@ function renderChunkCard(s) {
   s.querySelector('[data-skip]').onclick = () => advanceChunk();
 }
 function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+
+/* What "an example" means for a keystroke: the line before, the key, the line after. */
+function kbDemo(d) {
+  return `<div class="kbdemo">
+      ${d.where ? `<span class="where">${esc(d.where)}</span>` : ''}
+      <div class="ba"><span class="lbl">before</span><code>${esc(d.before)}</code></div>
+      <div class="key"><span class="lbl">press</span><kbd>${esc(d.keys)}</kbd></div>
+      <div class="ba"><span class="lbl">after</span><code>${esc(d.after)}</code></div>
+    </div>`;
+}
 
 function advanceChunk() {
   const L = A.learn;
@@ -1580,7 +1649,8 @@ function renderReference(s) {
   const draw = (q = '') => {
     const ql = q.toLowerCase().trim();
     const hits = ALL_ITEMS.filter(i => !ql || i.cmd.toLowerCase().includes(ql) || i.what.toLowerCase().includes(ql)
-      || (i.note||'').toLowerCase().includes(ql) || i.catName.toLowerCase().includes(ql) || (i.ex||'').toLowerCase().includes(ql));
+      || (i.note||'').toLowerCase().includes(ql) || i.catName.toLowerCase().includes(ql) || (i.ex||'').toLowerCase().includes(ql)
+      || (i.demo ? (i.demo.where||'') + i.demo.before + i.demo.after : '').toLowerCase().includes(ql));
     if (!hits.length) { el('refout').innerHTML = `<p class="muted">No match. <span class="mono">apropos</span> would say: nothing appropriate.</p>`; return; }
     let html = '', cat = null;
     hits.forEach(i => {
@@ -1591,6 +1661,7 @@ function renderReference(s) {
         <div class="w">It ${esc(i.what)}.
           ${i.note ? `<span class="n">${esc(i.note)}</span>` : ''}
           ${i.ex ? `<span class="n">$ ${esc(i.ex)}</span>` : ''}
+          ${i.demo ? `<span class="n">${esc(i.demo.before)} — press ${esc(i.demo.keys)} → ${esc(i.demo.after)}</span>` : ''}
           <span class="st">${'█'.repeat(b)}${'░'.repeat(5-b)} ${['unseen','shaky','learning','solid','strong','mastered'][b]} · ${esc(i.lessonTitle)}</span>
         </div></div>`;
     });
@@ -1703,7 +1774,10 @@ function openSettings() {
     <div class="row">${[50,100,200].map(n => `<button class="chip ${P.goal===n?'on':''}" data-goal="${n}">${n} XP</button>`).join('')}</div>
     <p class="muted" style="font-size:12px;margin-top:6px">One finished set is roughly 70 XP, so 100 XP is about a set and a half a day.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Path</h3>
-    <div class="row"><button class="chip ${P.settings.freeroam?'on':''}" data-roam>Free roam: ${P.settings.freeroam?'on':'off'}</button></div>
+    <div class="row"><button class="chip ${P.settings.freeroam?'on':''}" data-roam>Free roam: ${P.settings.freeroam?'on':'off'}</button>
+      <button class="chip ${P.settings.briefs!==false?'on':''}" data-briefs>Set briefings: ${P.settings.briefs!==false?'on':'off'}</button></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">A briefing opens each set with the commands in it and a
+      worked example of when you would use them. Turn it off to go straight to the cards.</p>
     <p class="muted" style="font-size:12px;margin-top:6px">Off keeps you on the next step. On unlocks every set so you can jump around.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Display</h3>
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
@@ -1732,6 +1806,7 @@ function openSettings() {
   d.querySelectorAll('[data-bite]').forEach(b => b.onclick = () => { P.settings.bite = +b.dataset.bite; save(); d.remove(); openSettings(); render(); });
   d.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { P.goal = +b.dataset.goal; save(); d.remove(); openSettings(); render(); });
   d.querySelector('[data-roam]').onclick = () => { P.settings.freeroam = !P.settings.freeroam; save(); d.remove(); openSettings(); render(); };
+  d.querySelector('[data-briefs]').onclick = () => { P.settings.briefs = P.settings.briefs === false; save(); d.remove(); openSettings(); render(); };
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
   d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
