@@ -12,6 +12,32 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.9] — 2026-08-24
+
+### Added
+- **The ★ bonus round.** Clear every set in a topic and one more step opens at the end of that
+  row: **every command in the topic in one sitting**, instead of three at a time. Each topic's
+  build-the-command challenges are folded in too.
+- It really is all of them — **23** questions for Navigation & Listing, 27 for Files &
+  Directories, 20 for Viewing & Inspecting, **42** for Permissions & Users, **48** for
+  Processes & Jobs, 17 for Identity & Help, 7 for Environment & Packages, **71** for Vim,
+  2 for Bash Editing Modes.
+- New badge — **Full sweep**, for scoring 100% on a whole-topic review.
+
+### Changed
+- Long rounds now survive you. Switch tabs or press `Esc` mid-review and the attempt is
+  **parked**, not thrown away — the bubble offers to *resume · 8 of 71 answered*. Leaving by
+  the ✕ asks first, once there is something to lose.
+
+### Notes
+- The review is a **bonus**: it is not counted in a topic's "5/5 sets", and it never changes
+  the topic's percentage or the module score. It keeps its own best score on its own bubble,
+  and like set scores it only ever climbs — a worse retake cannot pull it down.
+- Retrying only the questions you missed deliberately does *not* set the review score;
+  five missed questions answered right is not 100% of a topic.
+
+---
+
 ## [0.8] — 2026-08-20
 
 ### Added

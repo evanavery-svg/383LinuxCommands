@@ -430,6 +430,19 @@ code,.mono{font-family:var(--font)}
                  50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--accent) 6%,transparent)}}
 @media (prefers-reduced-motion:reduce){.step.now .bub{animation:none}}
 
+/* the bonus "whole topic" round that closes each chapter — set apart from the
+   numbered steps so it reads as extra, not as another set to get through */
+.step.review{width:120px;border-left:1px dashed var(--line);padding-left:14px;margin-left:4px}
+.step.review .bub{border-style:dashed;background:transparent}
+.step.review.open .bub{border-color:var(--accent);color:var(--accent);font-size:21px}
+.step.review.now .bub{font-size:18px}
+.step.review.locked .bub{border-style:dotted}
+/* a finished review keeps a second ring, so at 100% it is still readable as the
+   bonus round rather than a sixth ordinary set */
+.step.review.done .bub{border-style:solid;
+  box-shadow:0 0 0 2px var(--bg),0 0 0 4px color-mix(in srgb,var(--accent) 55%,transparent)}
+.step.review .cap{font-style:italic}
+
 /* ---------- card / quiz furniture ---------- */
 .cardtop{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .cardtop .x{
@@ -461,6 +474,7 @@ code,.mono{font-family:var(--font)}
   .ring span{width:60px;height:60px;font-size:13px}
   .step{width:84px}
   .step .bub{width:44px;height:44px;font-size:14px}
+  .step.review{width:100px;padding-left:10px}
   .strip>div{flex:1 1 45%;border-bottom:1px solid var(--line)}
 }
 
@@ -471,6 +485,7 @@ code,.mono{font-family:var(--font)}
 .modrow.locked .go{font-size:11.5px;color:var(--dim)}
 .chapter.dim{opacity:.5}
 .chapter.dim .step{cursor:not-allowed}
+.chapter.dim .step.review.now{cursor:pointer}   /* a parked review is always resumable */
 .chapter.current{border-left-color:var(--accent)}
 
 /* ---------- type-it-yourself step on learning cards ---------- */

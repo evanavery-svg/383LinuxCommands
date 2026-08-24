@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.8';
+const VERSION = '0.9';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.9', date:'2026-08-24', title:'A whole-topic round at the end of every topic',
+    notes:[
+      'New: the ★ bonus round. Clear every set in a topic and one more step opens at the end of that row — every command in the topic in a single sitting, not three at a time.',
+      'It really is all of them: 23 questions for Navigation & Listing, 42 for Permissions & Users, 48 for Processes & Jobs, 71 for Vim. Each topic\'s build-the-command challenges are folded in too.',
+      'It is a bonus, so it does not count toward "5/5 sets" and never changes the topic percentage. The review keeps its own best score on its own bubble.',
+      'Long rounds survive you: switch tabs or press Esc mid-review and the attempt is parked, with the bubble offering to resume where you left off. Quitting with ✕ asks first.',
+      'New badge — Full sweep, for scoring 100% on a whole-topic review.'
+    ] },
   { version:'0.8', date:'2026-08-20', title:'Build the command, and sit a mock exam',
     notes:[
       'New: Build the command. You are given a goal and write the whole line — flags, paths and all. Marked on what the command actually does, not on its text, so any line that gets there counts.',

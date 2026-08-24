@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.8** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.9** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -28,6 +28,17 @@ Finished steps show **your score** rather than a tick: 100% fills the circle in,
 50–99% leaves it outlined, below 50% turns it amber. Scores keep your best result,
 so retrying a set only ever pushes it up — which makes turning a path of 60s and
 80s into a wall of 100s something to chase.
+
+**The ★ bonus round** — clear every set in a topic and one more step opens at the end of
+that row: the *whole topic in one sitting*. Not a sample — every command in it, plus that
+topic's build challenges. Navigation & Listing is 23 questions, Permissions & Users 42,
+Processes & Jobs 48, Vim 71. Finishing five sets of three at a time is not the same as
+knowing the topic, and this is where you find out which.
+
+It is a **bonus**, so it is not counted in the topic's "5/5 sets" and never moves the topic
+percentage — it keeps its own best score on its own bubble. A 71-question round is a long
+sitting, so it looks after you: switch tabs or press `Esc` and the attempt is parked, with
+the bubble offering to *resume · 8 of 71 answered*. Only the ✕ discards it, and it asks first.
 
 **Learn** — one idea per card: the command, one plain sentence saying what it
 does, a worked example with realistic output, and a "Remember" hook (`-h` only
@@ -75,7 +86,8 @@ example, each showing your mastery bar.
 
 **Two different numbers, kept apart.** Your **score** — on topic cards, the module
 header and the Progress tab — is the average of your set scores, so finishing every set
-in a topic at 100% reads 100%. **Retention**, on the Progress tab, is the
+in a topic at 100% reads 100%. (The ★ bonus round is deliberately outside that sum, which
+is why taking one cannot knock a finished topic off 100%.) **Retention**, on the Progress tab, is the
 spaced-repetition depth: a command climbs one of five levels each time you get it right,
 so it fills slowly and is what the Review queue uses to decide what is fading.
 
@@ -85,7 +97,7 @@ one-click drill for them. Export/import your save as JSON, or wipe it: Settings 
 *Your progress* → **Wipe all progress** confirms first, offers a backup, and keeps
 your theme and preferences.
 
-**Keeping you coming back** — 15 badges to unlock, a combo bonus for correct
+**Keeping you coming back** — 16 badges to unlock, a combo bonus for correct
 answers in a row, and a daily XP goal (50 / 100 / 200) shown as a ring on the
 module page.
 
@@ -121,7 +133,7 @@ tabs, prompt lines, and an htop-style status bar.
 | Key | Does |
 |---|---|
 | `1`–`6` | switch tabs |
-| `Esc` | step back out (card → path → module → home) |
+| `Esc` | step back out (card → path → module → home); parks a topic review rather than losing it |
 | `1`–`4` | pick a multiple-choice answer |
 | `Enter` | check what you typed / next question / next set from the results screen |
 | `↑` `↓` | command history in the terminal |

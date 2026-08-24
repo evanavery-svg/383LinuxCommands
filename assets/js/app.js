@@ -15,6 +15,7 @@ const DEFAULTS = {
   missions: {},             // id -> true
   badges: {},               // id -> date unlocked
   chunks: {},               // legacy set-completion marks, kept so old saves still read
+  reviews: {},              // category id -> best score on that topic's review round
   bestCombo: 0, perfects: 0, goal: 100,
   settings: { theme:'matrix', crt:true, bite:3, freeroam:false }
 };
@@ -124,6 +125,7 @@ const BADGES = [
   { id:'mission10',icon:'🛠️',name:'Shell tinkerer',   desc:'Solve 10 terminal missions',         test:()=>missionCount() >= 10 },
   { id:'missionAll',icon:'🏆',name:'Mission complete', desc:'Solve every terminal mission',       test:()=>missionCount() >= MISSIONS.length },
   { id:'vimquit', icon:'🚪', name:'Escaped Vim',      desc:'Master how to quit Vim',             test:()=>(P.mastery.vim_qbang||{}).b >= 3 },
+  { id:'sweep',   icon:'🧹', name:'Full sweep',       desc:'Score 100% on a whole-topic review', test:()=>Object.values(P.reviews||{}).some(v => v >= 100) },
   /* These track score, not retention — retention needs every card right on five
      separate days, which would make "Module mastered" all but unwinnable. */
   { id:'mod50',   icon:'🥈', name:'Halfway',          desc:'Score 50% across a whole module',    test:()=>READY_MODULES.some(mo => scoreOf(allSets(mo.num)) >= 50) },
@@ -253,6 +255,7 @@ const A = {
   tab: 'home',
   view: null,          // sub-view inside a tab
   quiz: null,
+  paused: null,        // an in-flight topic review, kept alive across tab switches
   learn: null,
   sh: null,
   mission: null,
@@ -345,7 +348,14 @@ function renderStatusbar() {
   const bb = el('bitebtn'); if (bb) bb.textContent = `bite: ${P.settings.bite}`;
   const tb = el('themebtn'); if (tb) tb.textContent = (THEMES.find(t => t[0] === P.settings.theme) || ['','theme'])[1].toLowerCase();
 }
-function go(tab, view) { A.tab = tab; A.view = view || null; A.quiz = null; A.learn = null; render(); window.scrollTo({top:0,behavior:'smooth'}); }
+function go(tab, view) {
+  /* A topic review runs to 70 questions. Park an unfinished one instead of
+     binning it, so a stray tab click does not cost the whole attempt — the
+     path offers it back as "resume". Ordinary rounds are short; they reset. */
+  if (A.quiz && A.quiz.opt.review && A.quiz.i < A.quiz.ids.length) A.paused = A.quiz;
+  A.tab = tab; A.view = view || null; A.quiz = null; A.learn = null; render();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 function render() {
   renderTabs(); renderStatusbar();
   el('winpath').textContent = 'student@fedora: ~' + (A.tab === 'home' ? '' : '/' + A.tab);
@@ -511,6 +521,26 @@ function allSets(num) {
   });
   return out;
 }
+/* The bonus round at the end of a topic: every command in it, plus every build
+   challenge that belongs to it, in one sitting. Deliberately NOT part of
+   allSets() — that list feeds the "N/M sets" counter, scoreOf() and
+   firstUnfinishedChunk(), and a review counted there would knock a finished
+   topic off 100%. Its score lives in its own store for the same reason:
+   deriving it from P.quick would just mirror the topic average. */
+function reviewFor(catId, sets) {
+  const catObj = CURRICULUM.find(c => c.id === catId);
+  const own    = (sets || allSets(catObj.mod)).filter(x => x.cat === catId);
+  const items  = ALL_ITEMS.filter(i => i.cat === catId);
+  const builds = BUILD_TASKS.filter(t => t.cat === catId).map(t => 'build:' + t.id);
+  const best   = P.reviews[catId];
+  return {
+    cat: catId, catObj, items, builds, sets: own,
+    ids: [...items.map(i => i.id), ...builds],
+    /* cumulative by definition, so it makes no sense before the sets are done */
+    unlocked: P.settings.freeroam || (own.length > 0 && own.every(x => x.done)),
+    pct: best === undefined ? null : best
+  };
+}
 function firstUnfinishedChunk() {
   for (const mo of READY_MODULES) {
     const nx = allSets(mo.num).find(x => !x.done);
@@ -582,7 +612,9 @@ function renderPath(s, num, focusCat) {
   s.innerHTML = prompt(`cat ~/course/module${num}/path`) + `
     <h1>Your path <span class="muted" style="font-size:13px">· ${esc(mo.label)}</span></h1>
     <p class="lead">${sets.length} sets of ${P.settings.bite} cards. Finish one, take the quick check, move on.
-      ${P.settings.freeroam ? 'Free roam is on — jump anywhere you like.' : 'The next step is always the highlighted one.'}</p>
+      ${P.settings.freeroam ? 'Free roam is on — jump anywhere you like.' : 'The next step is always the highlighted one.'}
+      Clear every set in a topic and its <b>★ bonus round</b> opens at the end of the row: the whole
+      topic in one sitting. It scores separately and never changes the topic's own percentage.</p>
     <div class="pathtop">
       <div class="bar" style="flex:1"><i style="width:${sets.length ? done/sets.length*100 : 0}%"></i></div>
       <span class="muted" style="font-size:12px;white-space:nowrap">${done}/${sets.length} done</span>
@@ -611,6 +643,7 @@ function renderPath(s, num, focusCat) {
                 <span class="cap">${esc(preview)}</span>
               </button>`;
           }).join('')}
+          ${reviewStep(g.cat, sets, gLocked)}
         </div>
       </section>`;
     }).join('')}
@@ -621,10 +654,52 @@ function renderPath(s, num, focusCat) {
     </div>`;
 
   s.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startChunk(b.dataset.l, +b.dataset.n));
+  s.querySelectorAll('[data-review]').forEach(b => b.onclick = () => startReview(b.dataset.review));
   const nb = s.querySelector('[data-next-step]');
   if (nb) nb.onclick = () => startChunk(sets[nextIdx].lesson.id, sets[nextIdx].n);
   s.querySelector('[data-back]').onclick = () => go('home', 'mod' + num);
   if (focusCat) { const t = el('cat-' + focusCat); if (t) t.scrollIntoView({ block:'start', behavior:'smooth' }); }
+}
+
+/* One extra bubble at the end of every chapter: the whole topic at once.
+   It is a bonus, so it is not counted in the chapter's tally above. */
+function reviewStep(catId, sets, gLocked) {
+  const rv = reviewFor(catId, sets);
+  if (!rv.ids.length) return '';
+  const held  = A.paused && A.paused.opt.review && A.paused.opt.review.cat === catId ? A.paused : null;
+  const grade = rv.pct === null ? '' : rv.pct === 100 ? ' done full' : rv.pct >= 50 ? ' done part' : ' done low';
+  /* a parked attempt is always resumable — you started it, so a locked chapter
+     must not strand your answers */
+  const shut  = !held && (!rv.unlocked || gLocked);
+  const state = held ? 'now' : shut ? 'locked' : grade ? grade.trim() : 'open';
+  const label = held ? '▶' : rv.pct === null ? (rv.unlocked ? '★' : '🔒') : `${rv.pct}<i>%</i>`;
+  const cap   = held ? `resume · ${held.i} of ${held.ids.length} answered`
+              : shut ? `finish the ${rv.sets.length} sets above first`
+              : `★ review all ${rv.ids.length}`;
+  const title = `Topic review — ${rv.catObj.name}: every command in this topic` +
+                (rv.builds.length ? ` plus its ${rv.builds.length} build challenges` : '') +
+                `, ${rv.ids.length} questions.` +
+                (rv.pct === null ? '' : ` Best score ${rv.pct}%.`) +
+                ' Bonus round — it does not change the topic score.';
+  return `<button class="step review ${state}" data-review="${catId}"
+            ${shut ? 'disabled' : ''} title="${esc(title)}">
+      <span class="bub">${label}</span>
+      <span class="cap">${esc(cap)}</span>
+    </button>`;
+}
+
+function startReview(catId) {
+  /* pick a parked attempt back up rather than starting the 70 again */
+  if (A.paused && A.paused.opt.review && A.paused.opt.review.cat === catId) {
+    A.quiz = A.paused; A.paused = null; A.tab = 'learn'; A.combo = 0; render(); return;
+  }
+  const rv = reviewFor(catId);
+  if (!rv.unlocked || !rv.ids.length) return;
+  A.tab = 'learn';
+  startDrill(shuffle(rv.ids), {
+    title: `Topic review — ${rv.catObj.name}`,
+    review: { cat: catId, mod: rv.catObj.mod, total: rv.ids.length }
+  });
 }
 
 function startChunk(lessonId, n) {
@@ -878,8 +953,15 @@ function renderQuestion(s) {
     });
   }
   s.querySelector('[data-quit]').onclick = () => {
-    const back = Q.opt.chunk ? ['learn', 'mod' + Q.opt.chunk.mod] : [A.tab === 'learn' ? 'learn' : 'drill'];
-    A.quiz = null; go(...back);
+    /* Leaving a long review by the ✕ really does throw the answers away, so
+       once there is something to lose, ask first. */
+    if (Q.opt.review && Q.i >= 3 &&
+        !confirm(`Leave the topic review? You have answered ${Q.i} of ${Q.ids.length} — ` +
+                 'quitting here discards them and the review keeps its old score.')) return;
+    const back = Q.opt.review ? ['learn', Q.opt.review.cat]
+               : Q.opt.chunk  ? ['learn', 'mod' + Q.opt.chunk.mod]
+                              : [A.tab === 'learn' ? 'learn' : 'drill'];
+    A.quiz = null; A.paused = null; go(...back);
   };
 }
 
@@ -920,10 +1002,17 @@ function renderQuizResult(s) {
   const Q = A.quiz;
   const pct = Math.round(Q.right / Q.ids.length * 100);
   let bonus = 0;
+  const rev = Q.opt.review;
   if (Q.opt.chunk && !Q.opt.replay) {
     P.chunks[chunkKey(Q.opt.chunk.lessonId, Q.opt.chunk.n)] = true;
     markLearned(Q.opt.chunk.items);
     bonus = 40; awardXP(40);
+  } else if (rev) {
+    /* best-ever, so a worse retake never drags the bubble down. Only a full
+       sweep counts — "retry just the missed" drops the review flag. */
+    const prev = P.reviews[rev.cat];
+    if (prev === undefined || pct > prev) P.reviews[rev.cat] = pct;
+    if (!Q.opt.replay) { bonus = 50; awardXP(50); }
   } else if (pct === 100 && !Q.opt.replay) { bonus = 25; awardXP(25); }
   if (pct === 100 && Q.ids.length >= 3) P.perfects++;
   save();
@@ -940,6 +1029,10 @@ function renderQuizResult(s) {
       ${fresh.length ? `<p class="lead">${fresh.map(b => `<span class="badgechip">${b.icon} ${esc(b.name)}</span>`).join(' ')}</p>` : ''}
       ${Q.opt.chunk && setPct(Q.opt.chunk.items) !== 100
         ? `<p class="lead">This set shows <b>${setPct(Q.opt.chunk.items)}%</b> on your path. Retry it to push it to 100%.</p>` : ''}
+      ${rev ? `<p class="lead">Your <b>${esc(CURRICULUM.find(c=>c.id===rev.cat).name)}</b> review now shows
+          <b>${P.reviews[rev.cat]}%</b>${P.reviews[rev.cat] > pct ? ' (your best so far)' : ''}.
+          ${pct === 100 ? 'That is the whole topic, in one sitting.' : 'Retry it to push that up — it keeps your best score.'}
+          Your topic score on the path is unchanged: this round is a bonus.</p>` : ''}
       <div class="goalline"><div class="bar" style="flex:1"><i style="width:${goalPct()}%"></i></div>
         <span class="muted" style="font-size:12px;white-space:nowrap">${todayXP()}/${P.goal} XP today</span></div></div>
     ${Q.wrong.length ? `<h2>Worth another look</h2>
@@ -953,16 +1046,21 @@ function renderQuizResult(s) {
       }).join('')}</div>` : ''}
     <div class="row" style="margin-top:18px">
       ${Q.opt.chunk ? '<button class="btn primary" data-enter data-nextset>▶ Next set</button>'
-                    : '<button class="btn primary" data-enter data-again>Drill again</button>'}
-      <button class="btn" data-redo>↻ Retry all ${Q.ids.length}</button>
+        : rev     ? '<button class="btn primary" data-enter data-path>▶ Back to the path</button>'
+                  : '<button class="btn primary" data-enter data-again>Drill again</button>'}
+      <button class="btn" data-redo>↻ Retry ${rev ? 'the whole review' : 'all ' + Q.ids.length}</button>
       ${Q.wrong.length ? `<button class="btn" data-fix>Retry just the ${[...new Set(Q.wrong)].length} missed</button>` : ''}
       ${Q.opt.chunk ? '<button class="btn" data-path>Back to the path</button>' : ''}
       <button class="btn ghost" data-home>← home</button>
     </div>`;
   const ag = s.querySelector('[data-again]'); if (ag) ag.onclick = () => startDrill(pickAdaptive(10));
-  const pb = s.querySelector('[data-path]'); if (pb) pb.onclick = () => go('learn', 'mod' + Q.opt.chunk.mod);
+  const pb = s.querySelector('[data-path]');
+  if (pb) pb.onclick = () => rev ? go('learn', rev.cat) : go('learn', 'mod' + Q.opt.chunk.mod);
   const fix = s.querySelector('[data-fix]');
-  if (fix) fix.onclick = () => startDrill([...new Set(Q.wrong)], { ...Q.opt, replay:true, title:'Second look' });
+  /* a partial retry must not be able to set the review score — five missed
+     questions answered right is not 100% of the topic */
+  if (fix) fix.onclick = () => startDrill([...new Set(Q.wrong)],
+    { ...Q.opt, review:null, replay:true, title:'Second look' });
   s.querySelector('[data-redo]').onclick = () => startDrill(shuffle(Q.ids), { ...Q.opt, replay:true, title:Q.title });
   const ns = s.querySelector('[data-nextset]');
   if (ns) ns.onclick = () => {
@@ -1581,7 +1679,7 @@ function confirmWipe() {
     P = structuredClone(DEFAULTS);
     P.settings = keep; P.goal = goal;         // preferences are not progress
     save();
-    A.sh = null; A.mission = null; A.learn = null; A.quiz = null;
+    A.sh = null; A.mission = null; A.learn = null; A.quiz = null; A.paused = null;
     d.remove();
     toast('Progress wiped — starting fresh');
     go('home');
@@ -1631,6 +1729,9 @@ document.addEventListener('keydown', e => {
   if (A.exam && !A.exam.done && e.key !== 'Enter') return;   // an exam owns the keyboard
   if (e.key === 'Escape') {
     const md = document.querySelector('.modal'); if (md) { md.remove(); return; }
+    /* go() parks an unfinished topic review, so Esc steps out to the path
+       without losing the answers; ordinary rounds just end. */
+    if (A.quiz && A.quiz.opt.review) { go('learn', A.quiz.opt.review.cat); return; }
     if (A.quiz) { A.quiz = null; render(); return; }
     if (A.learn) { const c = A.learn.lesson.cat; A.learn = null; go('learn', c); return; }
     if (A.view) { A.view = null; render(); return; }
