@@ -250,6 +250,55 @@ function makeQuestion(item, forceType) {
     options: shuffle([item, ...ds]).map(o => ({ label: 'It ' + o.what + '.', right: o.id === item.id })) };
 }
 
+/* ---------------- hints ----------------
+   Only on the questions you type from a blank prompt, and never in an exam.
+   Nothing new is authored: every one of the 221 items already carries a
+   "Remember" note, a lesson and a command, which is all a hint needs.
+   Taking one forfeits the mark (see answer()), so the tiers go weakest first. */
+
+/* Reveal the shape, not the letters: the command name and the punctuation that
+   makes it a shell command stay, the part you have to remember becomes dots.
+   ls -ltr -> "ls -···" */
+function maskAnswer(text) {
+  const t = String(text).trim(), toks = t.split(/\s+/);
+  const soft = toks.map((tok, n) => n === 0 ? tok : tok.replace(/[A-Za-z0-9]/g, '·')).join(' ');
+  if (soft !== t) return soft;
+  /* nothing alphanumeric to hide — "cd -" and "cd .." would come back whole,
+     so dot out the argument entirely and keep only its length */
+  return toks.map((tok, n) => n === 0 ? tok : '·'.repeat(tok.length)).join(' ');
+}
+function hintShape(text) {
+  const t = String(text).trim();
+  if (t.split(/\s+/).length > 1) return maskAnswer(t);
+  if (t.length <= 2) return null;            // masking "dd" or "G" would just hand it over
+  return t[0] + '·'.repeat(t.length - 1);
+}
+
+function hintsFor(q) {
+  const out = [];
+  if (q.type === 'build') {
+    const t = q.task;
+    out.push({ label:'What it uses',
+      html:`This one is built from: ${t.teach.map(id => `<span class="cmdtag">${
+        esc(ITEM_BY_ID[id] ? ITEM_BY_ID[id].cmd : id)}</span>`).join(' ')}` });
+    out.push({ label:'The shape of it',
+      html:`One route looks like <span class="skel">${esc(maskAnswer(t.expect))}</span>
+        <span class="note">Only a shape — marking is on what your line does, so a different
+        line that gets there is just as right.</span>` });
+    return out;
+  }
+  const it = q.item;
+  const shape = hintShape(it.cmd);
+  const isKey = it.kind === 'key';
+  out.push({ label:'Where it comes from',
+    html:`<span class="note">${esc(it.catName)} · ${esc(it.lessonTitle)}</span>` +
+      (shape ? `<span class="skel">${esc(shape)}</span>`
+             : `<div>It is a single ${isKey ? 'keystroke' : 'short command'} — ${it.cmd.length} character${
+                 it.cmd.length === 1 ? '' : 's'}.</div>`) });
+  if (it.note) out.push({ label:'Remember', html:esc(it.note) });
+  return out;
+}
+
 /* ---------------- app state ---------------- */
 const A = {
   tab: 'home',
@@ -885,6 +934,37 @@ function startDrill(ids, opt = {}) {
 const isBuild = id => typeof id === 'string' && id.startsWith('build:');
 const buildOf  = id => BUILD_BY_ID[id.slice(6)];
 
+/* Paints however many hints have been taken so far and re-arms the button.
+   Q.hinted lives on the round, so a re-render (or answering) keeps them on
+   screen, and the next question starts clean. */
+function wireHints(q) {
+  const box = el('hintbox'), btn = el('thint');
+  if (!box || !btn) return;
+  const Q = A.quiz;
+  const hints = hintsFor(q);
+  const shown = Math.min(Q.hinted || 0, hints.length);
+
+  box.innerHTML = shown ? hints.slice(0, shown).map((h, i) =>
+    `<div class="hint"><b>💡 Hint ${i+1}</b> <span class="lab">${esc(h.label)}</span>
+       <div class="hbody">${h.html}</div></div>`).join('') +
+    '<p class="hwarn">You took a hint, so this one is marked as a miss — it will come back.</p>' : '';
+
+  /* once they are exhausted the button goes, and the "costs you the mark"
+     caption with it — the box above now says so */
+  if (shown >= hints.length) { btn.remove(); el('hcost')?.remove(); return; }
+  btn.textContent = shown ? `💡 Another hint (${shown+1} of ${hints.length})` : '💡 Hint';
+  btn.title = shown ? 'Show the next hint' : 'A hint marks this question as a miss';
+  /* under the row, not inside it — the three buttons belong together */
+  if (!shown && !el('hcost')) btn.parentElement.insertAdjacentHTML('afterend',
+    '<p class="hcost muted" id="hcost">A hint marks this one as a miss — it will come back around.</p>');
+  btn.onclick = () => {
+    if (Q.answered) return;              // no peeking once it has been marked
+    Q.hinted = (Q.hinted || 0) + 1;
+    wireHints(q);
+    const inp = el('tin'); if (inp) inp.focus();
+  };
+}
+
 function renderQuestion(s) {
   const Q = A.quiz;
   if (Q.i >= Q.ids.length) return renderQuizResult(s);
@@ -894,7 +974,7 @@ function renderQuestion(s) {
   if (!Q.q || Q.qFor !== Q.i) {
     Q.q = task ? { type:'build', task, prompt:'Write a command line that does this:' }
                : makeQuestion(item, Q.opt.force);
-    Q.qFor = Q.i; Q.answered = false;
+    Q.qFor = Q.i; Q.answered = false; Q.hinted = 0;   // hints never carry over
   }
   const q = Q.q;
   const pct = Math.round(Q.i / Q.ids.length * 100);
@@ -914,12 +994,15 @@ function renderQuestion(s) {
 
   const body = el('qbody');
   if (q.type === 'build') {
-    body.innerHTML = `<div class="typebox"><span class="ps">student@fedora:~$</span>
+    body.innerHTML = `<div id="hintbox"></div>
+      <div class="typebox"><span class="ps">student@fedora:~$</span>
         <input id="tin" ${TYPING_ATTRS} enterkeyhint="go" placeholder="type the whole command…"></div>
       <div class="row"><button class="btn primary" id="tgo">Run it</button>
+        <button class="btn" id="thint">💡 Hint</button>
         <button class="btn" id="tskip">I don't know</button></div>
       <p class="muted" style="font-size:12px;margin-top:10px">Judged on what it actually does, so any
         line that achieves the goal counts — flag order and spacing do not matter.</p>`;
+    wireHints(q);
     const input = el('tin'); input.focus();
     const submit = () => answer(gradeBuild(q.task, input.value), input.value);
     el('tgo').onclick = submit;
@@ -929,10 +1012,13 @@ function renderQuestion(s) {
       e.preventDefault(); e.stopPropagation(); submit();
     };
   } else if (q.type === 'type') {
-    body.innerHTML = `<div class="typebox"><span class="ps">student@fedora:~$</span>
+    body.innerHTML = `<div id="hintbox"></div>
+      <div class="typebox"><span class="ps">student@fedora:~$</span>
         <input id="tin" ${TYPING_ATTRS} enterkeyhint="go" placeholder="${q.placeholder}"></div>
       <div class="row"><button class="btn primary" id="tgo">Answer</button>
+        <button class="btn" id="thint">💡 Hint</button>
         <button class="btn" id="tskip">I don't know</button></div>`;
+    wireHints(q);
     const input = el('tin'); input.focus();
     const submit = () => answer(checkTyped(item, input.value), input.value);
     el('tgo').onclick = submit;
@@ -973,14 +1059,23 @@ function answer(ok, given) {
   const task = isBuild(entry) ? buildOf(entry) : null;
   const item = task ? null : ITEM_BY_ID[entry];
 
+  /* A hint forfeits the mark: the question is scored as a miss, breaks the
+     combo and follows a miss's spaced-repetition path. Done here, in one
+     place, so every route into answer() obeys it. (scoreAnswer already
+     refuses to overwrite a P.quick that is true, so this cannot pull down a
+     set score you have already earned on the path.) */
+  const hinted   = (Q.hinted || 0) > 0;
+  const credited = ok && !hinted;
+
   /* a build task exercises several commands at once, so credit them all */
-  if (task) task.teach.forEach(id => scoreAnswer(id, ok));
-  else scoreAnswer(item.id, ok);
-  if (ok) Q.right++; else Q.wrong.push(entry);
+  if (task) task.teach.forEach(id => scoreAnswer(id, credited));
+  else scoreAnswer(item.id, credited);
+  if (credited) Q.right++; else Q.wrong.push(entry);
 
   const cheers = ['Nice.','Correct.','Got it.','Yes.','That is the one.','Spot on.'];
-  const head = ok ? `✓ ${cheers[Math.floor(Math.random()*cheers.length)]}${A.combo >= 3 ? `  🔥 ${A.combo} in a row` : ''}`
-                  : '✗ Not this time';
+  const head = credited ? `✓ ${cheers[Math.floor(Math.random()*cheers.length)]}${A.combo >= 3 ? `  🔥 ${A.combo} in a row` : ''}`
+             : ok       ? '✓ That is it — but it counts as a miss'
+                        : '✗ Not this time';
   const explain = task
     ? `<div>One line that does it: <span class="cmdtag">${esc(task.expect)}</span></div>
        ${!ok && given ? `<span class="note">You wrote: <span class="mono">${esc(given)}</span></span>` : ''}
@@ -989,8 +1084,9 @@ function answer(ok, given) {
        ${!ok && given ? `<span class="note">You said: <span class="mono">${esc(given)}</span></span>` : ''}
        ${item.ex ? `<span class="note">Example: <span class="mono">${esc(item.ex)}</span></span>` : ''}
        ${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}`;
-  el('qverdict').innerHTML = `<div class="verdict ${ok?'ok':'no'}">
+  el('qverdict').innerHTML = `<div class="verdict ${credited ? 'ok' : ok ? 'hint' : 'no'}">
       <h4>${head}</h4>
+      ${ok && hinted ? '<span class="note">You took a hint, so this one goes back in the deck and will come round again.</span>' : ''}
       ${explain}
     </div>
     <button class="btn primary" id="qnext">${Q.i === Q.ids.length-1 ? 'See results →' : 'Next question →'} <span class="muted">Enter</span></button>`;
@@ -1761,6 +1857,12 @@ el('changelogbtn').onclick = openChangelog;
 el('verstamp').textContent = 'v' + VERSION;
 el('copyyear').textContent = new Date().getFullYear();
 el('copyholder').textContent = COPYRIGHT_HOLDER;
+/* the same stamp on the boot screen, which sits over the top of that footer */
+if (el('bootver')) {
+  el('bootver').textContent = 'PATHfinder v' + VERSION;
+  el('bootyear').textContent = new Date().getFullYear();
+  el('bootholder').textContent = COPYRIGHT_HOLDER;
+}
 el('bitebtn').onclick = () => {
   const order = [2,3,5,8]; P.settings.bite = order[(order.indexOf(P.settings.bite)+1) % order.length];
   save(); toast(`Bite size: ${P.settings.bite} cards per set`); render();

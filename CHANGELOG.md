@@ -12,6 +12,29 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.10] — 2026-08-24
+
+### Added
+- **Hints on the questions you type.** Both *"type the command that…"* and **Build the
+  command** now have a **💡 Hint** button. Two tiers, weakest first:
+  1. where it comes from — the topic and lesson — plus the **shape** of the answer, with
+     the part you have to remember dotted out (`ls -ltr` shows as `ls -···`);
+  2. the **Remember** note from that command's card.
+  For a build challenge the tiers are the commands it is made from, then a masked route.
+- The version and **© Avery LLC** now appear on the **boot screen**, bottom right, the way
+  a BIOS screen carries them. Read from `VERSION` at runtime, so it cannot go stale.
+
+### Notes
+- **A hint costs you the mark.** Taking one scores that question as a miss: it lands on
+  *worth another look*, breaks your combo and comes back sooner. The button says so before
+  you press it. Type it right afterwards and you still get a ✓ — the verdict just says
+  plainly that it counts as a miss.
+- A hinted miss can never pull down a set score you have already earned on the path.
+- **The mock exam has no hints**, on purpose — that is what exam conditions are.
+- The learn card is unchanged: it already shows you the exact text after two wrong tries.
+
+---
+
 ## [0.9] — 2026-08-24
 
 ### Added

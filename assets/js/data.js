@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.9';
+const VERSION = '0.10';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.10', date:'2026-08-24', title:'Hints when you are stuck on a typed answer',
+    notes:[
+      'New: a 💡 Hint button on the questions you type from a blank prompt — both "type the command that…" and Build the command. Two tiers: first the topic it came from and the shape of the answer (ls -ltr shows as "ls -···"), then the Remember note from its card.',
+      'Hints are honest about the cost: taking one marks that question as a miss, and the button says so before you press it. Type it right afterwards and you still get a ✓ — it just goes back in the deck to come round again.',
+      'The mock exam has no hints, on purpose. That is what exam conditions are.',
+      'The boot screen now carries the version and © Avery LLC, bottom right, the way a BIOS screen does.'
+    ] },
   { version:'0.9', date:'2026-08-24', title:'A whole-topic round at the end of every topic',
     notes:[
       'New: the ★ bonus round. Clear every set in a topic and one more step opens at the end of that row — every command in the topic in a single sitting, not three at a time.',

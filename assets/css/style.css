@@ -79,7 +79,18 @@ body.crt::after{ /* scanlines + flicker */
 #boot pre{margin:0;color:var(--accent);text-shadow:var(--glow);font-size:clamp(9px,1.5vw,15px);line-height:1.15}
 #bootlog{margin-top:1.2rem;font-size:13px;color:var(--dim);white-space:pre-wrap}
 #bootlog b{color:var(--good)}
-#boot .skip{position:absolute;bottom:4vh;left:6vw;color:var(--dim);font-size:12px}
+/* one row along the bottom: the skip hint on the left, and the version and
+   copyright on the right where a BIOS screen puts them. wrap-reverse means
+   that when they will not fit side by side the stamp lifts above the hint
+   rather than either one being clipped — no width breakpoint needed. */
+#boot .bootbar{
+  position:absolute;bottom:4vh;left:6vw;right:6vw;
+  display:flex;flex-wrap:wrap-reverse;gap:6px 18px;align-items:baseline;justify-content:space-between;
+}
+#boot .skip{color:var(--dim);font-size:12px}
+#boot .bootfoot{color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+#boot .bootfoot #bootver{color:var(--accent)}
+#boot .bootfoot .sep{opacity:.5}
 
 /* ---------- window chrome ---------- */
 .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:18px 14px 60px}
@@ -221,6 +232,26 @@ code,.mono{font-family:var(--font)}
 .verdict h4{margin:0 0 6px;font-size:13.5px;color:var(--accent)}
 .verdict.no h4{color:var(--bad)}
 .verdict .note{color:var(--dim);margin-top:8px;display:block;font-size:12.5px}
+/* right, but after a hint — neither the green nor the red */
+.verdict.hint{border-color:var(--warn)}
+.verdict.hint h4{color:var(--warn)}
+
+/* ---------- hints on the typed questions ---------- */
+.hint{
+  border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;
+  background:var(--panel);padding:11px 14px;margin:0 0 10px;font-size:13px;line-height:1.6;
+}
+.hint b{color:var(--warn);font-size:12.5px}
+.hint .lab{color:var(--dim);font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;margin-left:6px}
+.hint .hbody{margin-top:6px;color:var(--fg)}
+.hint .note{color:var(--dim);font-size:12px;display:block;margin-top:6px;line-height:1.55}
+.hint .cmdtag{margin-right:2px}
+.skel{
+  display:inline-block;margin-top:8px;font-size:17px;letter-spacing:2.5px;color:var(--accent);
+  background:var(--bg2);border:1px dashed var(--line);border-radius:6px;padding:5px 12px;
+}
+.hwarn{margin:0 0 14px;font-size:11.5px;color:var(--dim)}
+.hcost{font-size:11.5px;margin:9px 0 0}
 
 /* ---------- terminal mode ---------- */
 .termgrid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
@@ -661,6 +692,8 @@ code,.mono{font-family:var(--font)}
     white-space:pre;font-size:19px;line-height:1.45;letter-spacing:1px;display:block;
   }
   #bootlog{font-size:12px}
+  #boot .bootbar{left:5vw;right:5vw}
+  #boot .skip,#boot .bootfoot{font-size:11px}
 }
 
 /* ---------- build-the-command & exam ---------- */

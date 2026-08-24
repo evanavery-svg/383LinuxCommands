@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.9** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.10** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -60,14 +60,21 @@ you type it from a blank prompt. Flag order does not matter, so `ls -lh` and
 `ls -hl` both pass. Every wrong answer sinks that command down a level so it comes
 back sooner.
 
+**Stuck on a typed answer?** There is a **💡 Hint** button, in two tiers: first the topic
+it came from and the *shape* of the answer with the part you have to remember dotted out
+(`ls -ltr` shows as `ls -···`), then the Remember note from its card. It is honest about
+the price — a hint marks that question as a miss, and says so before you press it, so it
+comes back around instead of quietly counting as known. Get it right after a hint and you
+still get a ✓; it just tells you it counts as a miss. There are no hints in the mock exam.
+
 **Build the command** — instead of "what does `-t` do", you get a goal and write the whole
 line. Graded by outcome: your command and a model answer each run in their own throwaway
 shell and the results are compared, so any line that genuinely achieves the goal passes and
 flag order never matters. 36 challenges across Module 1.
 
 **Mock exam** — a timed paper under exam conditions: typed answers only, no multiple choice,
-no hints, no feedback until you hand it in. Skip a question and it returns at the end. The
-report grades you, ranks your topics worst-first, shows every miss next to what you wrote,
+no hint button, no feedback until you hand it in. Skip a question and it returns at the end.
+The report grades you, ranks your topics worst-first, shows every miss next to what you wrote,
 and drills them in one click. Past papers are kept so you can watch the score climb.
 
 **Review** — a Leitner spaced-repetition queue. The home screen tells you how many
