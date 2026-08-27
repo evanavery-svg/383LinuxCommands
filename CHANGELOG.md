@@ -12,6 +12,28 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.12] — 2026-08-27
+
+### Added
+- **Sync to another device.** One tap generates a link that carries your entire save —
+  compressed, encoded, and tucked into the URL fragment so nothing hits the server. Open
+  the link on your phone, laptop or any other browser and choose **Replace** or **Merge**.
+- **Merge** keeps the best of both sides: the higher XP, the better scores, the union of
+  badges and missions, and the stronger mastery box for every command.
+- On a phone the link opens the native share sheet (AirDrop, Messages, etc.); on desktop
+  it copies to the clipboard.
+- **Download save file** and **Load from file** replace the old clipboard-only export and
+  import. Your save downloads as a timestamped `.json` file you can keep anywhere.
+- A **Download backup** button is now in Settings too, alongside Copy a backup.
+
+### Notes
+- The sync link uses the `#` fragment, which browsers never send to the server — your
+  progress stays between your own devices. The data is deflate-compressed and base64-encoded.
+- Nothing about the save format has changed. Old saves, old exports and the clipboard
+  buttons all still work.
+
+---
+
 ## [0.11] — 2026-08-24
 
 ### Added

@@ -43,6 +43,127 @@ function load() {
 }
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch {} }
 
+/* ---------------- sync helpers ---------------- */
+function downloadSave() {
+  const blob = new Blob([JSON.stringify(P, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href:url, download:`pathfinder-${new Date().toISOString().slice(0,10)}.json` });
+  document.body.append(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Save file downloaded');
+}
+function importFile() {
+  const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.json' });
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const raw = JSON.parse(r.result);
+        P = { ...structuredClone(DEFAULTS), ...raw, settings:{ ...DEFAULTS.settings, ...(raw.settings||{}) } };
+        save(); toast('Progress restored from file'); render();
+      } catch { toast('That file was not valid progress data'); }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+async function encodeSave() {
+  const json = JSON.stringify(P);
+  if (typeof CompressionStream !== 'undefined') {
+    const cs = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate'));
+    const buf = await new Response(cs).arrayBuffer();
+    return 'z' + btoa(String.fromCharCode(...new Uint8Array(buf)));
+  }
+  return 'r' + btoa(unescape(encodeURIComponent(json)));
+}
+async function decodeSave(str) {
+  const tag = str[0], payload = str.slice(1);
+  if (tag === 'z' && typeof DecompressionStream !== 'undefined') {
+    const bin = Uint8Array.from(atob(payload), c => c.charCodeAt(0));
+    const ds = new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return JSON.parse(await new Response(ds).text());
+  }
+  if (tag === 'r') return JSON.parse(decodeURIComponent(escape(atob(payload))));
+  throw new Error('unknown encoding');
+}
+function mergeSaves(local, inc) {
+  const out = structuredClone(local);
+  out.xp = Math.max(local.xp||0, inc.xp||0);
+  out.bestCombo = Math.max(local.bestCombo||0, inc.bestCombo||0);
+  out.perfects = Math.max(local.perfects||0, inc.perfects||0);
+  const ld = local.lastDay||'', id = inc.lastDay||'';
+  if (id > ld) { out.streak = inc.streak||0; out.lastDay = id; }
+  const daysAll = new Set([...Object.keys(local.days||{}), ...Object.keys(inc.days||{})]);
+  out.days = {}; for (const d of daysAll) out.days[d] = Math.max((local.days||{})[d]||0, (inc.days||{})[d]||0);
+  for (const [k,v] of Object.entries(inc.mastery||{})) {
+    const l = (local.mastery||{})[k];
+    if (!l) { out.mastery[k] = v; continue; }
+    out.mastery[k] = (v.b > l.b || (v.b === l.b && (v.c+v.w) > (l.c+l.w))) ? v : l;
+  }
+  for (const k of Object.keys(inc.learned||{})) out.learned[k] = true;
+  for (const k of Object.keys(inc.missions||{})) out.missions[k] = true;
+  for (const [k,v] of Object.entries(inc.badges||{})) { if (!out.badges[k]) out.badges[k] = v; }
+  for (const [k,v] of Object.entries(inc.quick||{})) { if (v === true) out.quick[k] = true; }
+  for (const [k,v] of Object.entries(inc.reviews||{})) out.reviews[k] = Math.max(out.reviews[k]||0, v);
+  const exL = local.exams||[], exI = inc.exams||[];
+  const seen = new Set(exL.map(x => x.date+x.pct+x.total));
+  const merged = [...exL]; for (const x of exI) { if (!seen.has(x.date+x.pct+x.total)) merged.push(x); }
+  merged.sort((a,b) => b.date.localeCompare(a.date));
+  out.exams = merged.slice(0, 20);
+  return out;
+}
+async function syncLink() {
+  try {
+    const encoded = await encodeSave();
+    const url = location.origin + location.pathname + '#sync=' + encoded;
+    if (navigator.share) { navigator.share({ title:'PATHfinder progress', url }); return; }
+    await navigator.clipboard?.writeText(url);
+    toast('Sync link copied — open it on another device');
+  } catch { toast('Could not create sync link'); }
+}
+function showSyncModal(raw) {
+  const inc = { ...structuredClone(DEFAULTS), ...raw, settings:{ ...DEFAULTS.settings, ...(raw.settings||{}) } };
+  const incLearned = Object.keys(inc.learned||{}).length;
+  const incMissions = Object.keys(inc.missions||{}).length;
+  const d = document.createElement('div');
+  d.className = 'modal';
+  d.innerHTML = `<div class="inner">
+    <h2>Import progress?</h2>
+    <p style="font-size:13.5px;line-height:1.7">Incoming save from another device:</p>
+    <ul style="font-size:13px;color:var(--dim);line-height:1.8;margin:0 0 14px;padding-left:20px">
+      <li><b style="color:var(--fg)">${inc.xp||0}</b> XP</li>
+      <li><b style="color:var(--fg)">${incLearned}</b> cards learned</li>
+      <li><b style="color:var(--fg)">${incMissions}</b> missions solved</li>
+    </ul>
+    <p class="muted" style="font-size:12.5px">Your local settings (theme, bite size) are kept either way.</p>
+    <div class="row" style="margin-top:18px;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" data-replace>Replace my progress</button>
+      <button class="btn" data-merge>Merge (keep the best of both)</button>
+      <button class="btn ghost" data-cancel>Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('[data-cancel]').onclick = () => d.remove();
+  d.querySelector('[data-replace]').onclick = () => {
+    const keep = { ...P.settings };
+    P = inc; P.settings = keep; save(); d.remove(); toast('Progress replaced'); render();
+  };
+  d.querySelector('[data-merge]').onclick = () => {
+    const keep = { ...P.settings };
+    P = mergeSaves(P, raw); P.settings = keep; save(); d.remove(); toast('Progress merged — best of both kept'); render();
+  };
+}
+(function checkSyncHash() {
+  if (typeof location === 'undefined') return;
+  const h = location.hash;
+  if (!h.startsWith('#sync=')) return;
+  const payload = h.slice(6);
+  history.replaceState(null, '', location.pathname + location.search);
+  decodeSave(payload).then(raw => showSyncModal(raw)).catch(() => toast('Invalid sync link'));
+})();
+
 const today = () => new Date().toISOString().slice(0,10);
 const level = () => Math.floor(P.xp / XP_PER_LEVEL) + 1;
 const rank  = () => RANKS[Math.min(RANKS.length-1, level()-1)];
@@ -1740,21 +1861,22 @@ function renderProgress(s) {
 
     <h2>Save data</h2>
     <p class="muted" style="font-size:12.5px">Progress lives in this browser only (localStorage). ${seen.length} of ${ALL_ITEMS.length} bites touched.</p>
-    <div class="row"><button class="btn" data-export>Export progress</button>
-      <button class="btn" data-import>Import progress</button>
-      <button class="btn ghost" data-reset>Reset everything</button></div>`;
+    <div class="syncgrid">
+      <button class="btn primary" data-sync>Sync to another device</button>
+      <button class="btn" data-dl>Download save file</button>
+      <button class="btn" data-export>Copy to clipboard</button>
+      <button class="btn" data-import>Load from file</button>
+      <button class="btn ghost" data-reset>Reset everything</button>
+    </div>`;
 
   const w = s.querySelector('[data-weak]'); if (w) w.onclick = () => { A.tab='drill'; startDrill(weak.map(i => i.id), { title:'Weak-spot drill' }); };
+  s.querySelector('[data-sync]').onclick = syncLink;
+  s.querySelector('[data-dl]').onclick = downloadSave;
   s.querySelector('[data-export]').onclick = () => {
     navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Progress JSON copied to clipboard'),
       () => window.prompt('Copy your progress:', JSON.stringify(P)));
   };
-  s.querySelector('[data-import]').onclick = () => {
-    const t = window.prompt('Paste exported progress JSON:');
-    if (!t) return;
-    try { P = { ...structuredClone(DEFAULTS), ...JSON.parse(t) }; save(); toast('Progress restored'); render(); }
-    catch { toast('That was not valid progress data'); }
-  };
+  s.querySelector('[data-import]').onclick = importFile;
   s.querySelector('[data-reset]').onclick = confirmWipe;
 }
 
@@ -1787,6 +1909,7 @@ function openSettings() {
       Saved in this browser only.</p>
     <div class="row">
       <button class="chip" data-export2>Copy a backup</button>
+      <button class="chip" data-dl2>Download backup</button>
       <button class="chip danger" data-wipe>Wipe all progress</button>
     </div>
     <p class="muted" style="font-size:12px;margin-top:6px">Wiping clears XP, scores, learned cards, badges and
@@ -1814,6 +1937,7 @@ function openSettings() {
     navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Backup copied to the clipboard'),
       () => window.prompt('Copy your progress:', JSON.stringify(P)));
   };
+  d.querySelector('[data-dl2]').onclick = downloadSave;
   d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
 }
 

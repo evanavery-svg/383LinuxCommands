@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.11';
+const VERSION = '0.12';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.12', date:'2026-08-27', title:'Sync your progress to another device',
+    notes:[
+      'New: Sync to another device. One tap generates a link that carries your entire save — compressed, encoded, and tucked into the URL fragment so nothing hits the server. Open the link on your phone, laptop or any other browser and choose Replace or Merge.',
+      'Merge keeps the best of both sides: the higher XP, the better scores, the union of badges and missions, and the stronger mastery box for every command.',
+      'On a phone the link opens the native share sheet (AirDrop, Messages, etc.); on desktop it copies to the clipboard.',
+      'New: Download save file and Load from file replace the old clipboard-only export and import. Your save downloads as a timestamped .json file you can keep anywhere.',
+      'A Download backup button is now in Settings too, alongside Copy a backup.'
+    ] },
   { version:'0.11', date:'2026-08-24', title:'Every set now opens with a briefing',
     notes:[
       'New: a briefing before every set. It names the commands you are about to meet and what each one does, so you see the shape before the detail instead of meeting them cold, one card at a time.',

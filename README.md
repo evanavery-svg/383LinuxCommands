@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.11** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.12** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -118,9 +118,15 @@ so it fills slowly and is what the Review queue uses to decide what is fading.
 
 **Progress** — XP, rank (Guest → root), day streak, accuracy, a 35-day activity
 heatmap, score by module, retention by topic, and your current weakest commands with a
-one-click drill for them. Export/import your save as JSON, or wipe it: Settings →
-*Your progress* → **Wipe all progress** confirms first, offers a backup, and keeps
-your theme and preferences.
+one-click drill for them.
+
+**Sync to another device** — one tap creates a link that carries your entire save,
+compressed and encoded in the URL fragment (nothing hits the server). Open it on
+another device and choose **Replace** or **Merge** — merge keeps the best of both
+sides. On a phone it opens the share sheet; on desktop it copies to the clipboard.
+You can also **download your save as a .json file** or **load from file**, and the
+old clipboard export still works. Settings → *Your progress* → **Wipe all progress**
+confirms first, offers a backup, and keeps your theme and preferences.
 
 **Keeping you coming back** — 16 badges to unlock, a combo bonus for correct
 answers in a row, and a daily XP goal (50 / 100 / 200) shown as a ring on the
