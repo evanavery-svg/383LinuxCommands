@@ -1,12 +1,12 @@
 # PATHfinder — a Linux command trainer
 
-**v0.12** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.13** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
 **Module 1 — Linux Fundamentals** is loaded in full: **221 commands, flags and
-keystrokes** across nine topics, from `pwd` all the way through Vim's
-command-line mode.
+keystrokes** across ten topics, from `pwd` all the way through Vim's
+command-line mode, plus a guided Lab 01.
 
 Everything runs client-side. No build step, no dependencies, no server.
 
@@ -87,7 +87,7 @@ still get a ✓; it just tells you it counts as a miss. There are no hints in th
 **Build the command** — instead of "what does `-t` do", you get a goal and write the whole
 line. Graded by outcome: your command and a model answer each run in their own throwaway
 shell and the results are compared, so any line that genuinely achieves the goal passes and
-flag order never matters. 36 challenges across Module 1.
+flag order never matters. 42 challenges across Module 1.
 
 **Mock exam** — a timed paper under exam conditions: typed answers only, no multiple choice,
 no hint button, no feedback until you hand it in. Skip a question and it returns at the end.
@@ -100,9 +100,10 @@ commands are about to fade and drills only those.
 **Terminal** — a working simulated Fedora box with a real virtual filesystem,
 permissions, ownership, jobs and signals. `ls -ltr`, `chmod u+s`, `cp -r`,
 `ln -s`, `ps aux`, `xload &`, `kill -9 %1`, `man 5 passwd` all behave the way they
-should, including the error messages. 55 missions are checked against what
-actually happened to the filesystem, not against the text you typed — so any
-correct route counts. `cat` a binary and the screen really does fill with garbage
+should, including the error messages. Pipes (`cmd | cmd`), output redirection
+(`cmd > file`), command substitution (`$(cmd)`), and script execution
+(`./script.sh`) work too. 73 missions are checked against what actually happened
+to the filesystem, not against the text you typed — so any correct route counts. `cat` a binary and the screen really does fill with garbage
 until you run `reset`.
 
 **Reference** — all 221 entries, searchable by command, description, flag or

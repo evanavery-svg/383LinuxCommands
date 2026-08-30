@@ -12,6 +12,22 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.13] — 2026-08-30
+
+### Added
+- **Lab 01** — an 18-mission guided lab inside the terminal. Fix a broken script,
+  edit config files with grep and sed, build pipelines with pipes, redirect output
+  to files, and use command substitution.
+- **Pipes** (`cmd | cmd`), **output redirection** (`cmd > file`), **command
+  substitution** (`$(cmd)`), and **script execution** (`./script.sh`) in the
+  simulated shell.
+- New commands: `grep` (with `-i`, `-n`, `-c`, `-v`), `sed` (`s/old/new/` with
+  `-i`), `printf` (`%s`, `%d`, `\n`), and `sleep`.
+- 6 new build-the-command challenges for the Lab 01 topic.
+- Lab 01 topic added to the Module 1 curriculum.
+
+---
+
 ## [0.12] — 2026-08-27
 
 ### Added

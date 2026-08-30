@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.12';
+const VERSION = '0.13';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.13', date:'2026-08-30', title:'Lab 01 — a simulated lab assignment',
+    notes:[
+      'New: Lab 01, an 18-mission guided lab inside the terminal. Fix a broken script, edit config files with grep and sed, build pipelines with pipes, redirect output to files, and use command substitution.',
+      'New shell features: pipes (cmd | cmd), output redirection (cmd > file), command substitution ($(cmd)), and script execution (./script.sh).',
+      'New commands: grep (pattern search with -i, -n, -c, -v), sed (stream editing with s/old/new/ and -i), printf (formatted output with %s, %d), and sleep.',
+      '6 new build-the-command challenges for the Lab 01 topic.',
+      'New Lab 01 topic added to the Module 1 curriculum.'
+    ] },
   { version:'0.12', date:'2026-08-27', title:'Sync your progress to another device',
     notes:[
       'New: Sync to another device. One tap generates a link that carries your entire save — compressed, encoded, and tucked into the URL fragment so nothing hits the server. Open the link on your phone, laptop or any other browser and choose Replace or Merge.',
@@ -1234,6 +1242,11 @@ const CURRICULUM = [
       ]
     }
   ]
+},
+{
+  mod: 1, id:'lab01', name:'Lab 01', icon:'📋',
+  blurb:'A simulated lab assignment: fix scripts, edit configs, run pipelines, and build reports.',
+  lessons:[]
 }
 ];
 

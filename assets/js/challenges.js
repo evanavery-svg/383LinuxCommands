@@ -135,7 +135,27 @@ const BUILD_TASKS = [
     expect:'echo $HOME' },
   { id:'c36', mod:1, cat:'sys', teach:['dnf','dnf_install'],
     goal:'Install the vim package on this Fedora system, with the privileges that needs.',
-    expect:'sudo dnf install vim' }
+    expect:'sudo dnf install vim' },
+
+  /* ---- Lab 01 ---- */
+  { id:'c37', mod:1, cat:'lab01', teach:['grep'],
+    goal:'Search network.conf for every line that contains the word "timeout".',
+    expect:'grep timeout lab-01/network.conf' },
+  { id:'c38', mod:1, cat:'lab01', teach:['sed_i'],
+    goal:'Change the port from 3000 to 8080 in lab-01/network.conf, editing the file in place.',
+    expect:"sed -i 's/3000/8080/' lab-01/network.conf" },
+  { id:'c39', mod:1, cat:'lab01', teach:['chmod','chmod_ux'], must:/[ugoa]*[+\-=][rwxst]/,
+    goal:'Using symbolic notation, add execute permission for the owner of lab-01/broken_backup.sh.',
+    expect:'chmod u+x lab-01/broken_backup.sh' },
+  { id:'c40', mod:1, cat:'lab01', teach:['pipe','grep'],
+    goal:'List every process and pipe the output into grep to show only lines containing "sshd".',
+    expect:'ps aux | grep sshd' },
+  { id:'c41', mod:1, cat:'lab01', teach:['redir'],
+    goal:'Write the text "done" into a new file called lab-01/report.txt using output redirection.',
+    expect:'echo done > lab-01/report.txt' },
+  { id:'c42', mod:1, cat:'lab01', teach:['printf'],
+    goal:'Use printf to print your username via command substitution: User: student',
+    expect:'printf \'User: %s\\n\' "$(whoami)"' }
 ];
 
 const BUILD_BY_ID = Object.fromEntries(BUILD_TASKS.map(t => [t.id, t]));
