@@ -450,7 +450,7 @@ const A = {
 
 const TABS = [
   ['home','Home'], ['learn','Learn'], ['drill','Drill'],
-  ['terminal','Terminal'], ['reference','Reference'], ['progress','Progress']
+  ['terminal','Terminal'], ['labs','Labs'], ['reference','Reference'], ['progress','Progress']
 ];
 
 /* Shell text is case-sensitive and full of things a phone keyboard loves to
@@ -542,7 +542,7 @@ function render() {
   el('winpath').textContent = 'student@fedora: ~' + (A.tab === 'home' ? '' : '/' + A.tab);
   const s = el('screen');
   ({ home:renderHome, learn:renderLearn, drill:renderDrill, terminal:renderTerminal,
-     reference:renderReference, progress:renderProgress }[A.tab] || renderHome)(s);
+     labs:renderLabs, reference:renderReference, progress:renderProgress }[A.tab] || renderHome)(s);
 }
 function prompt(cmd) {
   return `<p class="psline"><span class="u">student@fedora</span>:<span class="p">~</span>$ <span class="c">${esc(cmd)}</span><span class="cursor"></span></p>`;
@@ -1825,16 +1825,14 @@ function startLab(id) {
   if (stepsDone > 0 && stepsDone < lab.steps.length) {
     pushTerm({ t:'note', s:`Resuming from step ${stepsDone + 1} of ${lab.steps.length}.` });
   }
-  go('terminal');
+  go('labs');
   setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
 }
 function exitLab() {
   A.lab = null;
   A.sh = new Shell();
   A.buffer = [];
-  pushTerm({ t:'note', s:'Lab exited. Filesystem restored.' });
-  render();
-  setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+  go('labs');
 }
 function renderLabPanel() {
   const lb = A.lab;
@@ -1916,17 +1914,111 @@ function renderScenarioPicker() {
     </div>
   </div>`;
 }
+function renderLabs(s) {
+  if (A.lab) { renderLabTerminal(s); return; }
+  const allLabs = LABS;
+  const doneCount = allLabs.filter(l => P.labs[l.id] && P.labs[l.id].complete).length;
+  s.innerHTML = prompt('ls /usr/share/labs') + `
+    <h1>Labs — hands-on assignments</h1>
+    <p class="lead phone-hide">Structured, multi-step exercises that walk you through real sysadmin tasks.
+      Each lab gives you a fresh filesystem and a checklist of objectives.<br>
+      <span class="tag ok">${allLabs.length} lab${allLabs.length !== 1 ? 's' : ''} · ${doneCount} completed</span></p>
+    <div class="cardgrid">${allLabs.map(lab => {
+      const lp = P.labs && P.labs[lab.id];
+      const stepsDone = lp ? lp.done : 0;
+      const pct = Math.round(stepsDone / lab.steps.length * 100);
+      const complete = lp && lp.complete;
+      return `<button class="card" data-startlab="${lab.id}">
+        <h3>${complete ? '✓ ' : '🖥️ '}${esc(lab.title)}</h3>
+        <p>${esc(lab.subtitle)}</p>
+        <div class="meta"><span>${stepsDone}/${lab.steps.length} steps</span><span>${complete ? '✓ Complete' : pct + '% done'}</span></div>
+        <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
+    }).join('')}</div>
+    <p class="muted" style="margin-top:18px">More labs coming in future modules.</p>`;
+  s.querySelectorAll('[data-startlab]').forEach(b => b.onclick = () => startLab(b.dataset.startlab));
+}
+function renderLabTerminal(s) {
+  if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
+  const lb = A.lab;
+  s.innerHTML = prompt('bash --login') + `
+    <h1>Lab — ${esc(lb.data.title)}</h1>
+    <p class="lead phone-hide">${esc(lb.data.description)}</p>
+    <div class="termgrid">
+      <div>
+        <div id="term"></div>
+        <div class="terminput"><span class="ps"><span class="host">[student@fedora </span><span id="cwdlab">${esc(shortCwd())}</span><span class="host">]</span>$</span>
+          <input id="tinput" ${TYPING_ATTRS} enterkeyhint="go" placeholder="type a command"></div>
+        <div class="keybar${COARSE ? ' on' : ''}" id="keybar">${TERM_KEYS.map(k =>
+          `<button class="keycap${k.w ? ' wide' : ''}" data-k="${esc(k.ins)}">${esc(k.label || k.ins)}</button>`).join('')}</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn ghost sm" data-clear>Clear screen</button>
+          <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
+          <button class="btn ghost sm" data-tree>${A.showTree ? 'Lab steps' : 'File tree'}</button>
+          <button class="btn ghost sm" data-lexit>Exit lab</button>
+        </div>
+      </div>
+      <div>
+        ${A.showTree ? `<div class="treepanel" id="treepanel">
+          <h3>File System</h3>
+          <div class="treeview">${buildTree(A.sh.root, '', A.sh.cwd, 0)}</div>
+          <div class="treehint">Click to expand/collapse. Double-click to cd.</div>
+        </div>` : renderLabPanel()}
+      </div>
+    </div>`;
+
+  const term = el('term');
+  if (!A.buffer.length) {
+    pushTerm({ t:'note', s:'Fedora Linux 40 (Workstation Edition) — simulated for practice' });
+    pushTerm({ t:'out',  s:'Type a command below. Follow the lab steps on the right.' });
+    pushTerm({ t:'out',  s:'' });
+  }
+  paintTerm();
+  const input = el('tinput');
+  input.focus();
+  input.onkeydown = e => {
+    if (A.isearch) { if (isearchKey(e, input)) return; }
+    if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); isearchStart(input); return; }
+    if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); const h = A.sh.history; if (h.length) { A.histIdx = A.histIdx < 0 ? h.length-1 : Math.max(0, A.histIdx-1); input.value = h[A.histIdx]; } }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }
+    else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); A.buffer = []; paintTerm(); }
+    else if (e.key === 'Tab') { e.preventDefault(); tabComplete(input); }
+  };
+  s.querySelectorAll('.keycap').forEach(k => k.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const at = input.selectionStart ?? input.value.length;
+    input.setRangeText(k.dataset.k, at, input.selectionEnd ?? at, 'end');
+    input.focus();
+  }));
+  s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
+  s.querySelector('[data-resetfs]').onclick = () => {
+    A.sh = new Shell(); A.buffer = [];
+    if (A.lab) { A.lab.sh = A.sh; A.lab.stepIdx = 0; if (P.labs[A.lab.data.id]) P.labs[A.lab.data.id].done = 0; save(); }
+    pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus();
+    render();
+  };
+  s.querySelector('[data-tree]').onclick = () => { A.showTree = !A.showTree; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  s.querySelectorAll('[data-lexit]').forEach(b => b.onclick = () => exitLab());
+  const lhintBtn = s.querySelector('[data-lhint]');
+  if (lhintBtn) lhintBtn.onclick = () => {
+    if (!A.lab || A.lab.stepIdx >= A.lab.data.steps.length) return;
+    const step = A.lab.data.steps[A.lab.stepIdx];
+    const box = el('labhintbox');
+    if (box) box.innerHTML = `<div class="muted" style="font-size:12px;margin-top:6px">\u{1F4A1} ${esc(step.hint)}</div>`;
+    const i2 = el('tinput'); if (i2) i2.focus();
+  };
+  bindTreeClicks();
+}
 function renderTerminal(s) {
   if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
   const solved = TERM_MISSIONS.filter(mi => P.missions[mi.id]).length;
-  const cur = A.lab ? null : (A.mission || nextMission());
-  if (!A.lab) A.mission = cur;
+  const cur = A.mission || nextMission();
+  A.mission = cur;
   s.innerHTML = prompt('bash --login') + `
-    <h1>Terminal ${A.lab ? '— ' + esc(A.lab.data.title) : '— a Linux box you cannot break'}</h1>
-    <p class="lead phone-hide">${A.lab ? esc(A.lab.data.description)
-      : `Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
+    <h1>Terminal — a Linux box you cannot break</h1>
+    <p class="lead phone-hide">Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
       so any correct route counts. Type <span class="cmdtag">help</span>, or just explore.<br>
-      <span class="tag ok">${TERM_MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span>`}</p>
+      <span class="tag ok">${TERM_MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span></p>
     <div class="termgrid">
       <div>
         <div id="term"></div>
@@ -1940,14 +2032,12 @@ function renderTerminal(s) {
           <button class="btn ghost sm" data-clear>Clear screen</button>
           <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
           <button class="btn ghost sm" data-tree>${A.showTree ? 'Missions' : 'File tree'}</button>
-          ${A.lab ? '<button class="btn ghost sm" data-lexit2>Exit lab</button>'
-            : A.scenario ? '<button class="btn ghost sm" data-sexit2>Exit scenario</button>'
+          ${A.scenario ? '<button class="btn ghost sm" data-sexit2>Exit scenario</button>'
             : scenariosFor(1).length ? '<button class="btn ghost sm" data-scenarios>Scenarios</button>' : ''}
         </div>
       </div>
       <div>
-        ${A.lab ? renderLabPanel() :
-          A.scenario ? renderScenarioPanel() :
+        ${A.scenario ? renderScenarioPanel() :
           A.showScenarios ? renderScenarioPicker() :
           A.showTree ? `<div class="treepanel" id="treepanel">
           <h3>File System</h3>
@@ -2019,15 +2109,6 @@ function renderTerminal(s) {
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   s.querySelectorAll('[data-sexit],[data-sexit2]').forEach(b => b.onclick = () => exitScenario());
-  s.querySelectorAll('[data-lexit],[data-lexit2]').forEach(b => b.onclick = () => exitLab());
-  const lhintBtn = s.querySelector('[data-lhint]');
-  if (lhintBtn) lhintBtn.onclick = () => {
-    if (!A.lab || A.lab.stepIdx >= A.lab.data.steps.length) return;
-    const step = A.lab.data.steps[A.lab.stepIdx];
-    const box = el('labhintbox');
-    if (box) box.innerHTML = `<div class="muted" style="font-size:12px;margin-top:6px">\u{1F4A1} ${esc(step.hint)}</div>`;
-    const i2 = el('tinput'); if (i2) i2.focus();
-  };
   bindTreeClicks();
   s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
   /* on a phone the 55-row list is collapsed by default so the terminal is not

@@ -12,6 +12,15 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.26] — 2026-08-31
+
+### Labs tab
+
+- Labs now have their own top-level tab between Terminal and Reference.
+- The Labs tab shows a lab picker when no lab is active, with progress bars and completion status for each lab.
+- Starting a lab opens a dedicated terminal with the lab step checklist in the sidebar.
+- Lab-specific code removed from the Terminal tab — Terminal is now purely for missions and scenarios.
+
 ## [0.25] — 2026-08-31
 
 ### Labs — standalone lab simulations

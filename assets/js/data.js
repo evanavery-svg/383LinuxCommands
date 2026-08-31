@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.25';
+const VERSION = '0.26';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.26', date:'2026-08-31', title:'Labs tab',
+    notes:[
+      'Labs now have their own top-level tab between Terminal and Reference.',
+      'The Labs tab shows a lab picker when no lab is active, with progress bars and completion status for each lab.',
+      'Starting a lab opens a dedicated terminal with the lab step checklist in the sidebar.',
+      'Lab-specific code removed from the Terminal tab — Terminal is now purely for missions and scenarios.'
+    ] },
   { version:'0.25', date:'2026-08-31', title:'Labs — standalone lab simulations',
     notes:[
       'Labs are now fully independent simulations, separate from terminal missions and scenarios.',
