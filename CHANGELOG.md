@@ -12,6 +12,66 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.18] — 2026-08-31
+
+### Added
+- **Scenario challenges** — 5 open-ended troubleshooting tasks with multiple valid
+  solutions. Fix a broken script, lock down permissions, kill a rogue process,
+  organize scattered files, and repair a server config.
+- Each scenario sets up a realistic situation on a fresh filesystem. A live checklist
+  in the sidebar tracks your progress as you work.
+- Progressive hints available if you get stuck, revealed one at a time.
+- Completing a scenario awards 40 XP and credits relevant commands to your mastery.
+- Access from the **Scenarios** button in the terminal tab.
+
+---
+
+## [0.17] — 2026-08-31
+
+### Added
+- **Exportable study guide** — generate a printable cheat sheet from the Progress tab.
+  Two options: "Weak spots guide" focuses on commands you struggle with, "Full
+  reference sheet" covers everything.
+- The guide opens in a new tab as a clean, print-optimized page. Use Ctrl+P / Cmd+P
+  to print or save as PDF.
+- Content includes command, description, example, and memory note — grouped by topic.
+
+---
+
+## [0.16] — 2026-08-31
+
+### Added
+- **Filesystem tree visualization** — a live directory tree sidebar in the terminal.
+  Click "File tree" to toggle between the mission panel and a collapsible directory tree.
+- The tree highlights your current directory and auto-expands the path to it. Click
+  any directory to navigate there.
+- Directories show open/closed folder icons, files show document icons, and
+  executables are highlighted in green. Updates in real time.
+
+---
+
+## [0.15] — 2026-08-31
+
+### Added
+- **Tab completion** — press Tab in the terminal to autocomplete commands and file
+  paths, just like a real shell.
+- First token: completes command names. Later tokens: completes file and directory paths.
+- Directories get a trailing slash; single matches auto-insert a space. Multiple
+  matches show all candidates and insert the common prefix.
+
+---
+
+## [0.14] — 2026-08-31
+
+### Added
+- **Glob and wildcard expansion** in the shell. Patterns like `*.txt`, `file?`, and
+  `[a-c]*` now expand against the virtual filesystem.
+- Works transparently with all commands: `ls *.sh`, `cat Documents/*.txt`, etc.
+- Quoted patterns are not expanded, matching real bash behaviour.
+- Dotfiles are hidden from glob matches unless the pattern starts with a dot.
+
+---
+
 ## [0.13] — 2026-08-30
 
 ### Added

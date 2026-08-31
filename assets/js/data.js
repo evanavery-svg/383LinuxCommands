@@ -20,12 +20,46 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.13';
+const VERSION = '0.18';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.18', date:'2026-08-31', title:'Scenario challenges',
+    notes:[
+      'New: 5 scenario challenges — open-ended troubleshooting tasks with multiple valid solutions. Fix broken scripts, lock down permissions, kill rogue processes, organize files, and repair configs.',
+      'Each scenario sets up a realistic situation on a fresh filesystem. A live checklist tracks your progress as you work.',
+      'Hints are available if you get stuck, revealed one at a time. Completing a scenario awards 40 XP and credits the relevant commands to your mastery.',
+      'Access scenarios from the Scenarios button in the terminal tab.'
+    ] },
+  { version:'0.17', date:'2026-08-31', title:'Exportable study guide',
+    notes:[
+      'New: Generate a printable study guide from the Progress tab. Two options: "Weak spots guide" focuses on commands you struggle with, "Full reference sheet" covers everything.',
+      'The guide opens in a new tab as a clean, print-optimized page. Use Ctrl+P / Cmd+P to print or save as PDF.',
+      'Content includes command, description, example, and memory note — grouped by topic, with your weak spots and due-for-review commands highlighted first.'
+    ] },
+  { version:'0.16', date:'2026-08-31', title:'Filesystem tree visualization',
+    notes:[
+      'New: A live filesystem tree sidebar in the terminal. Click "File tree" to toggle between the mission panel and a collapsible directory tree.',
+      'The tree highlights your current directory and auto-expands the path to it. Click any directory to navigate there.',
+      'Directories show open/closed folder icons, files show document icons, and executables are highlighted in green.',
+      'The tree updates in real time as you create, move, or delete files and directories.'
+    ] },
+  { version:'0.15', date:'2026-08-31', title:'Tab completion',
+    notes:[
+      'New: Press Tab in the terminal to autocomplete commands and file paths, just like a real shell.',
+      'First token: completes command names (pw→pwd, chm→chmod). Later tokens: completes file and directory paths.',
+      'Directories get a trailing slash; single matches auto-insert a space. Multiple matches show all candidates and insert the common prefix.',
+      'Works with relative paths (lab-01/br→lab-01/broken_backup.sh) and tilde (~/ paths).'
+    ] },
+  { version:'0.14', date:'2026-08-31', title:'Glob and wildcard expansion',
+    notes:[
+      'New: Glob/wildcard expansion in the shell. Patterns like *.txt, file?, and [a-c]* now expand against the virtual filesystem.',
+      'Works transparently with all commands: ls *.sh, cat Documents/*.txt, rm /tmp/*.log, cp scripts/* backup/, etc.',
+      'Quoted patterns are not expanded, matching real bash behaviour: ls "*.txt" treats the asterisk literally.',
+      'Dotfiles are hidden from glob matches unless the pattern starts with a dot, just like a real shell.'
+    ] },
   { version:'0.13', date:'2026-08-30', title:'Lab 01 — a simulated lab assignment',
     notes:[
       'New: Lab 01, an 18-mission guided lab inside the terminal. Fix a broken script, edit config files with grep and sed, build pipelines with pipes, redirect output to files, and use command substitution.',

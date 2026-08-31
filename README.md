@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.13** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.18** · &copy; 2026 Avery LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -102,9 +102,27 @@ permissions, ownership, jobs and signals. `ls -ltr`, `chmod u+s`, `cp -r`,
 `ln -s`, `ps aux`, `xload &`, `kill -9 %1`, `man 5 passwd` all behave the way they
 should, including the error messages. Pipes (`cmd | cmd`), output redirection
 (`cmd > file`), command substitution (`$(cmd)`), and script execution
-(`./script.sh`) work too. 73 missions are checked against what actually happened
-to the filesystem, not against the text you typed — so any correct route counts. `cat` a binary and the screen really does fill with garbage
-until you run `reset`.
+(`./script.sh`) work too. **Glob expansion** (`*.txt`, `file?`, `[a-c]*`) works
+transparently with all commands, and **Tab completion** autocompletes commands and
+file paths just like a real shell. 73 missions are checked against what actually
+happened to the filesystem, not against the text you typed — so any correct route
+counts. `cat` a binary and the screen really does fill with garbage until you run
+`reset`.
+
+**Filesystem tree** — toggle a live directory tree sidebar in the terminal. It
+highlights your current directory, auto-expands the path to it, and clicking any
+directory navigates there. Updates in real time as you create, move, or delete files.
+
+**Scenario challenges** — 5 open-ended troubleshooting tasks with multiple valid
+solutions. Fix a broken script, lock down permissions, kill a rogue process,
+organize scattered files, and repair a config. Each scenario sets up a realistic
+situation on a fresh filesystem and grades you by end state, not by what you typed —
+so any correct approach counts. A live checklist tracks your progress, and hints are
+available if you get stuck.
+
+**Study guide** — generate a printable cheat sheet from the Progress tab. "Weak spots
+guide" focuses on commands you struggle with; "Full reference sheet" covers
+everything. Opens in a new tab as a clean, print-optimized page.
 
 **Reference** — all 221 entries, searchable by command, description, flag or
 example — including the keystroke demos, so searching *delete a word* finds `dW` — each
@@ -169,6 +187,7 @@ tabs, prompt lines, and an htop-style status bar.
 | `1`–`4` | pick a multiple-choice answer |
 | `Enter` | check what you typed / next question / next set from the results screen |
 | `↑` `↓` | command history in the terminal |
+| `Tab` | autocomplete commands and file paths in the terminal |
 | `Ctrl-L` | clear the terminal |
 
 On a touch device the shortcut row above the terminal keyboard inserts

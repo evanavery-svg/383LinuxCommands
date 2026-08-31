@@ -434,7 +434,10 @@ const A = {
   combo: 0,
   exam: null,
   examTimer: null,
-  examCfg: { count: 20, mins: 20 }
+  examCfg: { count: 20, mins: 20 },
+  showTree: false,
+  showScenarios: false,
+  scenario: null
 };
 
 const TABS = [
@@ -1589,6 +1592,150 @@ function renderExamSetup(s) {
 }
 
 /* ---------------- TERMINAL ---------------- */
+function commonPrefix(arr) {
+  if (!arr.length) return '';
+  let p = arr[0];
+  for (let i = 1; i < arr.length; i++) while (!arr[i].startsWith(p)) p = p.slice(0, -1);
+  return p;
+}
+function fileCompletions(partial, sh) {
+  const expanded = sh.expand(partial);
+  const lastSlash = expanded.lastIndexOf('/');
+  let dirPath, namePrefix, userPrefix;
+  if (lastSlash >= 0) {
+    dirPath = expanded.slice(0, lastSlash) || '/';
+    namePrefix = expanded.slice(lastSlash + 1);
+    userPrefix = partial.slice(0, partial.lastIndexOf('/') + 1);
+  } else {
+    dirPath = sh.cwd;
+    namePrefix = expanded;
+    userPrefix = '';
+  }
+  const dn = sh.node(dirPath);
+  if (!dn || dn.type !== 'dir') return [];
+  return Object.keys(dn.children)
+    .filter(n => n.startsWith(namePrefix))
+    .sort()
+    .map(n => userPrefix + n + (dn.children[n].type === 'dir' ? '/' : ''));
+}
+function tabComplete(input) {
+  const line = input.value, cursor = input.selectionStart;
+  const before = line.slice(0, cursor);
+  const tokens = before.trimStart().split(/\s+/);
+  const isFirst = tokens.length <= 1;
+  const partial = tokens[tokens.length - 1] || '';
+  let candidates;
+  if (isFirst) {
+    candidates = Object.keys(A.sh.cmds).filter(c => c.startsWith(partial)).sort();
+  } else {
+    candidates = fileCompletions(partial, A.sh);
+  }
+  if (!candidates.length) return;
+  if (candidates.length === 1) {
+    const c = candidates[0];
+    const pre = before.slice(0, before.length - partial.length);
+    const after = line.slice(cursor);
+    const suffix = c.endsWith('/') ? '' : ' ';
+    input.value = pre + c + suffix + after;
+    const pos = pre.length + c.length + suffix.length;
+    input.setSelectionRange(pos, pos);
+  } else {
+    const cp = commonPrefix(candidates);
+    if (cp.length > partial.length) {
+      const pre = before.slice(0, before.length - partial.length);
+      input.value = pre + cp + line.slice(cursor);
+      const pos = pre.length + cp.length;
+      input.setSelectionRange(pos, pos);
+    }
+    pushTerm({ t:'in', cwd: shortCwd(), s: line });
+    pushTerm({ t:'out', s: candidates.join('  ') });
+    paintTerm();
+  }
+}
+function buildTree(node, path, cwd, depth) {
+  if (!node || node.type !== 'dir' || depth > 5) return '';
+  const entries = Object.keys(node.children).sort();
+  let html = '';
+  for (const name of entries) {
+    if (name.startsWith('.') && depth > 0) continue;
+    const child = node.children[name];
+    const full = path === '/' ? '/' + name : path + '/' + name;
+    const isDir = child.type === 'dir';
+    const isCwd = full === cwd;
+    const isParent = cwd.startsWith(full + '/');
+    const icon = isDir ? (isCwd || isParent ? '\u{1F4C2}' : '\u{1F4C1}')
+               : child.type === 'link' ? '\u{1F517}' : '\u{1F4C4}';
+    html += `<div class="tnode${isCwd ? ' cwd' : ''}${isParent ? ' parent' : ''}" style="padding-left:${depth*16}px"${isDir ? ` data-tdir="${esc(full)}"` : ''}>` +
+            `<span class="ticon">${icon}</span>` +
+            `<span class="tname${isDir ? ' d' : (child.mode & 0o111) ? ' x' : ''}">${esc(name)}${isDir ? '/' : ''}</span></div>`;
+    if (isDir && (isCwd || isParent) && depth < 5) html += buildTree(child, full, cwd, depth + 1);
+  }
+  return html;
+}
+function startScenario(id) {
+  const sc = SCENARIOS.find(s => s.id === id);
+  if (!sc) return;
+  const sh = new Shell();
+  sc.setup(sh);
+  A.sh = sh;
+  A.buffer = [];
+  A.scenario = { data: sc, sh, hintIdx: 0, checkState: sc.checks.map(() => false) };
+  pushTerm({ t:'note', s:'--- Scenario: ' + sc.title + ' ---' });
+  pushTerm({ t:'out',  s: sc.description });
+  pushTerm({ t:'out',  s:'' });
+  render();
+  setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+}
+function exitScenario() {
+  A.scenario = null;
+  A.sh = new Shell();
+  A.buffer = [];
+  pushTerm({ t:'note', s:'Scenario exited. Filesystem restored.' });
+  render();
+  setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+}
+function renderScenarioPanel() {
+  const sc = A.scenario;
+  if (!sc) return '';
+  const d = sc.data;
+  const allPassed = sc.checkState.every(Boolean);
+  return `<div class="scenario-panel" id="scenariopanel">
+    <h3>Scenario: ${esc(d.title)}</h3>
+    <p class="muted" style="font-size:12px;margin:4px 0 10px">${esc(d.description)}</p>
+    <h4 style="font-size:12px;color:var(--accent2);margin:0 0 6px">Objectives</h4>
+    <div class="check-list">${d.checks.map((ch, i) =>
+      `<div class="check-item${sc.checkState[i] ? ' passed' : ''}">
+        <span class="check-icon">${sc.checkState[i] ? '✓' : '○'}</span>
+        <span>${esc(ch.desc)}</span>
+      </div>`).join('')}</div>
+    ${allPassed ? '<div class="note" style="margin-top:10px;color:var(--good);font-weight:700">All objectives complete!</div>' : ''}
+    <div id="scenariohints"></div>
+    <div class="row" style="margin-top:12px">
+      ${!allPassed ? '<button class="btn ghost sm" data-shint>Hint</button>' : ''}
+      <button class="btn ghost sm" data-sexit>${allPassed ? 'Continue' : 'Give up'}</button>
+    </div>
+  </div>`;
+}
+function renderScenarioPicker() {
+  const scenarios = scenariosFor(1);
+  const done = scenarios.filter(sc => P.missions['sc_' + sc.id]).length;
+  return `<div class="scenario-panel" id="scenariopanel">
+    <h3>Scenarios</h3>
+    <p class="muted" style="font-size:12px;margin:4px 0 10px">Open-ended troubleshooting challenges. Multiple valid paths to each solution.</p>
+    <div class="muted" style="font-size:11.5px;margin-bottom:10px">${done}/${scenarios.length} completed</div>
+    ${scenarios.map(sc => {
+      const solved = P.missions['sc_' + sc.id];
+      const stars = '★'.repeat(sc.difficulty) + '☆'.repeat(3 - sc.difficulty);
+      return `<div class="sc-card${solved ? ' done' : ''}" data-scstart="${sc.id}">
+        <div class="sc-title">${solved ? '✓ ' : ''}${esc(sc.title)}</div>
+        <div class="sc-meta">${stars} &middot; ${esc(sc.description.slice(0, 60))}${sc.description.length > 60 ? '…' : ''}</div>
+      </div>`;
+    }).join('')}
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost sm" data-scback>Back to missions</button>
+    </div>
+  </div>`;
+}
 function renderTerminal(s) {
   if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
   const solved = Object.keys(P.missions).length;
@@ -1611,10 +1758,17 @@ function renderTerminal(s) {
           <button class="btn ghost sm" data-skip>Skip mission</button>
           <button class="btn ghost sm" data-clear>Clear screen</button>
           <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
+          <button class="btn ghost sm" data-tree>${A.showTree ? 'Missions' : 'File tree'}</button>
+          ${!A.scenario && scenariosFor(1).length ? '<button class="btn ghost sm" data-scenarios>Scenarios</button>' : ''}
         </div>
       </div>
       <div>
-        <div class="mission ${cur?'':'done'}" id="missionbox">
+        ${A.scenario ? renderScenarioPanel() :
+          A.showScenarios ? renderScenarioPicker() :
+          A.showTree ? `<div class="treepanel" id="treepanel">
+          <h3>File System</h3>
+          <div class="treeview">${buildTree(A.sh.root, '', A.sh.cwd, 0)}</div>
+        </div>` : `<div class="mission ${cur?'':'done'}" id="missionbox">
           <h3>${cur ? 'Mission ' + (MISSIONS.indexOf(cur)+1) + ' / ' + MISSIONS.length : 'All missions solved'}</h3>
           ${cur ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">${esc(cur.tour)}</div>
                    <p class="goal">${esc(cur.goal)}</p>
@@ -1625,7 +1779,7 @@ function renderTerminal(s) {
           <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${MISSIONS.length} missions</button>
           <div class="misslist">${MISSIONS.map((mi,i) => `<div class="${P.missions[mi.id]?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
             ${P.missions[mi.id]?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}</div>`).join('')}</div>
-        </div>
+        </div>`}
       </div>
     </div>`;
 
@@ -1643,6 +1797,7 @@ function renderTerminal(s) {
     else if (e.key === 'ArrowUp')   { e.preventDefault(); const h = A.sh.history; if (h.length) { A.histIdx = A.histIdx < 0 ? h.length-1 : Math.max(0, A.histIdx-1); input.value = h[A.histIdx]; } }
     else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }
     else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); A.buffer = []; paintTerm(); }
+    else if (e.key === 'Tab') { e.preventDefault(); tabComplete(input); }
   };
   /* pointerdown + preventDefault keeps focus (and the on-screen keyboard) on
      the input, so tapping a symbol never dismisses the keyboard mid-command */
@@ -1656,6 +1811,32 @@ function renderTerminal(s) {
   s.querySelector('[data-resetfs]').onclick = () => { A.sh = new Shell(); A.buffer = []; pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus(); };
   s.querySelector('[data-skip]').onclick = () => { if (A.mission) { A.mission = nextMission(A.mission.id); render(); } };
   s.querySelector('[data-hint]').onclick = () => { const h = el('hintbox'); if (h && A.mission) h.innerHTML = `💡 ${esc(A.mission.hint)}`; input.focus(); };
+  s.querySelector('[data-tree]').onclick = () => { A.showTree = !A.showTree; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  const scBtn = s.querySelector('[data-scenarios]');
+  if (scBtn) scBtn.onclick = () => { A.showScenarios = true; A.showTree = false; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  s.querySelectorAll('[data-scstart]').forEach(b => b.onclick = () => { A.showScenarios = false; startScenario(b.dataset.scstart); });
+  const scbackBtn = s.querySelector('[data-scback]');
+  if (scbackBtn) scbackBtn.onclick = () => { A.showScenarios = false; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  const shintBtn = s.querySelector('[data-shint]');
+  if (shintBtn) shintBtn.onclick = () => {
+    if (!A.scenario) return;
+    const sc = A.scenario;
+    if (sc.hintIdx < sc.data.hints.length) {
+      const box = el('scenariohints');
+      if (box) box.innerHTML += `<div class="muted" style="font-size:12px;margin-top:6px">💡 ${esc(sc.data.hints[sc.hintIdx])}</div>`;
+      sc.hintIdx++;
+    }
+    const i2 = el('tinput'); if (i2) i2.focus();
+  };
+  const sexitBtn = s.querySelector('[data-sexit]');
+  if (sexitBtn) sexitBtn.onclick = () => exitScenario();
+  s.querySelectorAll('[data-tdir]').forEach(d => d.onclick = () => {
+    const path = d.dataset.tdir;
+    runLine('cd ' + path);
+    input.value = '';
+    const tp = el('treepanel');
+    if (tp) tp.querySelector('.treeview').innerHTML = buildTree(A.sh.root, '', A.sh.cwd, 0);
+  });
   s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
   /* on a phone the 55-row list is collapsed by default so the terminal is not
      pushed off the screen; this reveals it */
@@ -1704,7 +1885,46 @@ function runLine(line) {
     A.missTries++;
     if (A.missTries === 3) { const h = el('hintbox'); if (h) h.innerHTML = `💡 ${esc(A.mission.hint)}`; A.missTries = 0; }
   }
+
+  // scenario check
+  if (A.scenario) {
+    const sc = A.scenario;
+    let changed = false;
+    sc.data.checks.forEach((ch, i) => {
+      if (!sc.checkState[i]) {
+        try { if (ch.test(A.sh)) { sc.checkState[i] = true; changed = true; } } catch {}
+      }
+    });
+    if (changed) {
+      const panel = el('scenariopanel');
+      if (panel) {
+        const items = panel.querySelectorAll('.check-item');
+        sc.checkState.forEach((passed, i) => {
+          if (passed && items[i]) {
+            items[i].classList.add('passed');
+            items[i].querySelector('.check-icon').textContent = '✓';
+          }
+        });
+      }
+    }
+    if (sc.checkState.every(Boolean) && !P.missions['sc_' + sc.data.id]) {
+      P.missions['sc_' + sc.data.id] = true;
+      for (const tid of sc.data.teach) {
+        const it = ITEM_BY_ID[tid];
+        if (it) scoreAnswer(it.id, true);
+      }
+      awardXP(40); save(); checkBadges();
+      pushTerm({ t:'note', s:'✓ Scenario complete! (+40 XP)' });
+      toast('Scenario solved — well done!');
+      paintTerm();
+      render();
+      setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+      return;
+    }
+  }
+
   paintTerm();
+  if (A.showTree) { const tp = el('treepanel'); if (tp) tp.querySelector('.treeview').innerHTML = buildTree(A.sh.root, '', A.sh.cwd, 0); }
 }
 function paintTerm() {
   const term = el('term'); if (!term) return;
@@ -1794,6 +2014,51 @@ function renderReference(s) {
   el('refsearch').focus();
 }
 
+function generateStudyGuide(fullRef) {
+  const weak = ALL_ITEMS.filter(i => {
+    const x = P.mastery[i.id]; return x && x.b <= 2 && (x.w > 0 || x.c > 0);
+  }).sort((a,b) => (P.mastery[a.id].b - P.mastery[b.id].b) || (P.mastery[b.id].w - P.mastery[a.id].w));
+  const due = dueItems().map(id => ITEM_BY_ID[id]).filter(Boolean);
+  const byCat = {};
+  ALL_ITEMS.forEach(i => { (byCat[i.catName] = byCat[i.catName] || []).push(i); });
+  const e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const section = (title, items) => {
+    if (!items.length) return '';
+    return `<h2>${e(title)}</h2><table><thead><tr><th>Command</th><th>What it does</th><th>Example</th><th>Remember</th></tr></thead><tbody>${items.map(i =>
+      `<tr><td class="cmd">${e(i.cmd)}</td><td>${e(cap(i.what))}</td><td class="ex">${i.ex ? e(i.ex) : ''}</td><td class="note">${i.note ? e(i.note) : ''}</td></tr>`
+    ).join('')}</tbody></table>`;
+  };
+  let body = '';
+  if (!fullRef) {
+    body += section('Commands you struggle with', weak);
+    body += section('Commands due for review', due);
+  }
+  for (const [cat, items] of Object.entries(byCat)) body += section(cat, items);
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>PATHfinder Study Guide</title><style>
+    body{font-family:-apple-system,system-ui,sans-serif;font-size:11px;line-height:1.4;color:#222;max-width:1000px;margin:0 auto;padding:20px}
+    h1{font-size:18px;border-bottom:2px solid #222;padding-bottom:6px}
+    h2{font-size:14px;margin-top:24px;color:#333;border-bottom:1px solid #ccc;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-top:8px;page-break-inside:auto}
+    tr{page-break-inside:avoid}
+    th{text-align:left;font-size:10px;text-transform:uppercase;color:#666;border-bottom:2px solid #888;padding:4px 8px}
+    td{padding:4px 8px;border-bottom:1px solid #ddd;vertical-align:top;font-size:11px}
+    .cmd{font-family:monospace;font-weight:700;white-space:nowrap}
+    .ex{font-family:monospace;font-size:10px;color:#555}
+    .note{font-size:10px;color:#666;font-style:italic}
+    .meta{color:#888;font-size:10px;margin-top:4px}
+    @media print{body{padding:0}h1{font-size:16px}}
+    </style></head><body>
+    <h1>PATHfinder ${fullRef ? 'Reference Sheet' : 'Study Guide'}</h1>
+    <p class="meta">Generated ${new Date().toISOString().slice(0,10)} &middot; ${learnedCount()} of ${ALL_ITEMS.length} commands learned &middot; ${P.xp} XP &middot; ${rank()}</p>
+    ${body}
+    <p class="meta" style="margin-top:24px">Generated by PATHfinder v${VERSION}</p>
+    </body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else { const b = new Blob([html], {type:'text/html'}); const u = URL.createObjectURL(b); window.open(u); }
+}
+
 /* ---------------- PROGRESS ---------------- */
 function renderProgress(s) {
   const seen = ALL_ITEMS.filter(i => P.mastery[i.id]);
@@ -1859,6 +2124,13 @@ function renderProgress(s) {
       <div class="row" style="margin-top:12px"><button class="btn primary" data-weak>Drill these ${weak.length}</button></div>`
       : `<p class="muted">Nothing flagged yet — answer some questions and your weak spots will collect here.</p>`}
 
+    <h2>Study guide</h2>
+    <p class="muted" style="font-size:12.5px">A printable cheat sheet built from your progress.</p>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" data-guide>Weak spots guide</button>
+      <button class="btn" data-guideall>Full reference sheet</button>
+    </div>
+
     <h2>Save data</h2>
     <p class="muted" style="font-size:12.5px">Progress lives in this browser only (localStorage). ${seen.length} of ${ALL_ITEMS.length} bites touched.</p>
     <div class="syncgrid">
@@ -1870,6 +2142,8 @@ function renderProgress(s) {
     </div>`;
 
   const w = s.querySelector('[data-weak]'); if (w) w.onclick = () => { A.tab='drill'; startDrill(weak.map(i => i.id), { title:'Weak-spot drill' }); };
+  s.querySelector('[data-guide]').onclick = () => generateStudyGuide(false);
+  s.querySelector('[data-guideall]').onclick = () => generateStudyGuide(true);
   s.querySelector('[data-sync]').onclick = syncLink;
   s.querySelector('[data-dl]').onclick = downloadSave;
   s.querySelector('[data-export]').onclick = () => {

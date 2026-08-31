@@ -11,6 +11,24 @@ function dir(mode, children, owner)  { return { type:'dir',  mode: mode ?? 0o755
 function file(content, mode, owner, mtime) { return { type:'file', mode: mode ?? 0o644, owner: owner||USER, group: owner||GROUP, mtime: mtime||0, content: content||'' }; }
 function link(target)                { return { type:'link', mode: 0o777, owner:USER, group:GROUP, mtime:0, target }; }
 
+function globToRegex(pat) {
+  let re = '^';
+  for (let i = 0; i < pat.length; i++) {
+    const c = pat[i];
+    if (c === '*') re += '[^/]*';
+    else if (c === '?') re += '[^/]';
+    else if (c === '[') {
+      const close = pat.indexOf(']', i + 1);
+      if (close < 0) { re += '\\['; continue; }
+      re += pat.slice(i, close + 1);
+      i = close;
+    } else {
+      re += c.replace(/[.+^${}()|\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(re + '$');
+}
+
 function freshRoot() {
   return dir(0o755, {
     bin:  dir(0o755, { ls:file(ELF_MAGIC,0o755,'root'), cat:file(ELF_MAGIC,0o755,'root'), bash:file(ELF_MAGIC,0o755,'root') }, 'root'),
@@ -82,6 +100,22 @@ class Shell {
     if (p.startsWith('~/')) return '/home/' + USER + p.slice(1);
     if (p.startsWith('~')) return '/home/' + p.slice(1);
     return p;
+  }
+  globExpand(token) {
+    if (!/[*?\[]/.test(token)) return [token];
+    const lastSlash = token.lastIndexOf('/');
+    const dirPart = lastSlash >= 0 ? token.slice(0, lastSlash) || '/' : '.';
+    const pattern = lastSlash >= 0 ? token.slice(lastSlash + 1) : token;
+    const dirNode = this.node(dirPart);
+    if (!dirNode || dirNode.type !== 'dir') return [token];
+    const re = globToRegex(pattern);
+    const hideDots = !pattern.startsWith('.');
+    const matches = Object.keys(dirNode.children)
+      .filter(n => re.test(n) && (!hideDots || !n.startsWith('.')))
+      .sort();
+    if (!matches.length) return [token];
+    const prefix = lastSlash >= 0 ? (dirPart === '/' ? '/' : dirPart + '/') : '';
+    return matches.map(n => prefix + n);
   }
   node(p) {
     const path = this.norm(this.expand(p));
@@ -161,18 +195,31 @@ class Shell {
     });
     let bg = false;
     if (line.endsWith('&')) { bg = true; line = line.slice(0, -1).trim(); }
-    let argv = this.tokenize(line);
-    if (!argv.length) return [];
+    let tagged = this.tokenize(line, true);
+    if (!tagged.length) return [];
+    let argv = tagged.map(t => t.v);
     // output redirection: cmd > file
     let redir = null;
     const gtIdx = argv.indexOf('>');
     if (gtIdx >= 0) {
       redir = argv[gtIdx + 1] || null;
       argv = argv.slice(0, gtIdx);
+      tagged = tagged.slice(0, gtIdx);
       if (!argv.length) return [];
     }
     // one level of alias expansion
-    if (this.aliases[argv[0]] && !line.startsWith('alias')) argv = this.tokenize(this.aliases[argv[0]]).concat(argv.slice(1));
+    if (this.aliases[argv[0]] && !line.startsWith('alias')) {
+      const aliasTokens = this.tokenize(this.aliases[argv[0]], true);
+      tagged = aliasTokens.concat(tagged.slice(1));
+      argv = tagged.map(t => t.v);
+    }
+    // glob expansion: expand unquoted operands (skip argv[0])
+    const expanded = [argv[0]], expTags = [tagged[0]];
+    for (let k = 1; k < argv.length; k++) {
+      if (tagged[k].q) { expanded.push(argv[k]); expTags.push(tagged[k]); }
+      else { const g = this.globExpand(argv[k]); expanded.push(...g); g.forEach(v => expTags.push({v,q:false})); }
+    }
+    argv = expanded; tagged = expTags;
     let cmd = argv[0];
     if (cmd === 'sudo' && argv.length > 1 && !argv[1].startsWith('-')) { argv = argv.slice(1); cmd = argv[0]; }
     if (bg) {
@@ -207,15 +254,15 @@ class Shell {
     }
     return result;
   }
-  tokenize(line) {
-    const out = []; let cur = '', q = null;
+  tokenize(line, tag) {
+    const out = []; let cur = '', q = null, wasQ = false;
     for (const ch of line) {
       if (q) { if (ch === q) q = null; else cur += ch; }
-      else if (ch === '"' || ch === "'") q = ch;
-      else if (/\s/.test(ch)) { if (cur) { out.push(cur); cur = ''; } }
+      else if (ch === '"' || ch === "'") { q = ch; wasQ = true; }
+      else if (/\s/.test(ch)) { if (cur || wasQ) { out.push(tag ? { v:cur, q:wasQ } : cur); cur = ''; wasQ = false; } }
       else cur += ch;
     }
-    if (cur) out.push(cur);
+    if (cur || wasQ) out.push(tag ? { v:cur, q:wasQ } : cur);
     return out;
   }
   /* split argv into flag set + operands */
