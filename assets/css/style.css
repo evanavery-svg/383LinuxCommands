@@ -331,15 +331,17 @@ code,.mono{font-family:var(--font)}
 .partag.atpar{color:var(--good)}
 .treepanel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;max-height:56vh;overflow:auto}
 .treepanel h3{margin:0 0 8px;font-size:13px;color:var(--accent2);letter-spacing:.6px;text-transform:uppercase}
-.treeview{font-size:12.5px;line-height:1.6}
+.treeview{font-size:12.5px;line-height:1.6;overflow-x:auto}
 .tnode{padding:2px 4px;border-radius:4px;white-space:nowrap}
 .tnode[data-tdir]{cursor:pointer}
 .tnode[data-tdir]:hover{background:var(--sel)}
 .tnode.cwd{background:var(--sel);font-weight:700}
 .tnode.parent{color:var(--accent2)}
+.tarrow{display:inline-block;width:12px;font-size:10px;color:var(--dim);text-align:center;flex-shrink:0}
 .ticon{font-size:11px;margin-right:4px}
 .tname.d{color:var(--accent)}
 .tname.x{color:var(--good)}
+.treehint{font-size:10.5px;color:var(--dim);margin-top:6px;font-style:italic}
 .scenario-panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;max-height:56vh;overflow:auto}
 .scenario-panel h3{margin:0 0 4px;font-size:13px;color:var(--accent2);letter-spacing:.6px;text-transform:uppercase}
 .scenario-panel h4{margin:0}

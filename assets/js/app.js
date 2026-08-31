@@ -439,6 +439,7 @@ const A = {
   examTimer: null,
   examCfg: { count: 20, mins: 20 },
   showTree: false,
+  treeExpanded: new Set(),
   showScenarios: false,
   scenario: null,
   isearch: null,
@@ -1667,9 +1668,30 @@ function tabComplete(input) {
     paintTerm();
   }
 }
+function refreshTree() {
+  const tp = el('treepanel');
+  if (tp) { tp.querySelector('.treeview').innerHTML = buildTree(A.sh.root, '', A.sh.cwd, 0); bindTreeClicks(); }
+}
+function bindTreeClicks() {
+  const tp = el('treepanel'); if (!tp) return;
+  tp.querySelectorAll('[data-tdir]').forEach(d => {
+    d.onclick = () => {
+      const p = d.dataset.tdir;
+      if (A.treeExpanded.has(p)) A.treeExpanded.delete(p); else A.treeExpanded.add(p);
+      refreshTree();
+    };
+    d.ondblclick = (e) => {
+      e.preventDefault();
+      const input = el('tinput');
+      if (input) { runLine('cd ' + d.dataset.tdir); input.value = ''; }
+      refreshTree();
+    };
+  });
+}
 function buildTree(node, path, cwd, depth) {
-  if (!node || node.type !== 'dir' || depth > 5) return '';
+  if (!node || node.type !== 'dir' || depth > 8) return '';
   const entries = Object.keys(node.children).sort();
+  const exp = A.treeExpanded;
   let html = '';
   for (const name of entries) {
     if (name.startsWith('.') && depth > 0) continue;
@@ -1678,12 +1700,15 @@ function buildTree(node, path, cwd, depth) {
     const isDir = child.type === 'dir';
     const isCwd = full === cwd;
     const isParent = cwd.startsWith(full + '/');
-    const icon = isDir ? (isCwd || isParent ? '\u{1F4C2}' : '\u{1F4C1}')
+    const open = isDir && (isCwd || isParent || exp.has(full));
+    const arrow = isDir ? (open ? '▾' : '▸') : ' ';
+    const icon = isDir ? (open ? '\u{1F4C2}' : '\u{1F4C1}')
                : child.type === 'link' ? '\u{1F517}' : '\u{1F4C4}';
     html += `<div class="tnode${isCwd ? ' cwd' : ''}${isParent ? ' parent' : ''}" style="padding-left:${depth*16}px"${isDir ? ` data-tdir="${esc(full)}"` : ''}>` +
+            `<span class="tarrow">${arrow}</span>` +
             `<span class="ticon">${icon}</span>` +
             `<span class="tname${isDir ? ' d' : (child.mode & 0o111) ? ' x' : ''}">${esc(name)}${isDir ? '/' : ''}</span></div>`;
-    if (isDir && (isCwd || isParent) && depth < 5) html += buildTree(child, full, cwd, depth + 1);
+    if (isDir && open) html += buildTree(child, full, cwd, depth + 1);
   }
   return html;
 }
@@ -1841,6 +1866,7 @@ function renderTerminal(s) {
           A.showTree ? `<div class="treepanel" id="treepanel">
           <h3>File System</h3>
           <div class="treeview">${buildTree(A.sh.root, '', A.sh.cwd, 0)}</div>
+          <div class="treehint">Click to expand/collapse. Double-click to cd.</div>
         </div>` : `<div class="mission ${cur?'':'done'}" id="missionbox">
           <h3>${cur ? 'Mission ' + (MISSIONS.indexOf(cur)+1) + ' / ' + MISSIONS.length : 'All missions solved'}</h3>
           ${cur ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">${esc(cur.tour)}</div>
@@ -1907,13 +1933,7 @@ function renderTerminal(s) {
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   s.querySelectorAll('[data-sexit],[data-sexit2]').forEach(b => b.onclick = () => exitScenario());
-  s.querySelectorAll('[data-tdir]').forEach(d => d.onclick = () => {
-    const path = d.dataset.tdir;
-    runLine('cd ' + path);
-    input.value = '';
-    const tp = el('treepanel');
-    if (tp) tp.querySelector('.treeview').innerHTML = buildTree(A.sh.root, '', A.sh.cwd, 0);
-  });
+  bindTreeClicks();
   s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
   /* on a phone the 55-row list is collapsed by default so the terminal is not
      pushed off the screen; this reveals it */
@@ -2006,7 +2026,7 @@ function runLine(line) {
   }
 
   paintTerm();
-  if (A.showTree) { const tp = el('treepanel'); if (tp) tp.querySelector('.treeview').innerHTML = buildTree(A.sh.root, '', A.sh.cwd, 0); }
+  if (A.showTree) refreshTree();
 }
 function paintTerm() {
   const term = el('term'); if (!term) return;

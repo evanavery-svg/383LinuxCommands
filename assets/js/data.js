@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.23';
+const VERSION = '0.24';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.24', date:'2026-08-31', title:'Module 2 — Version Control with Git',
+    notes:[
+      'New: Module 2 adds 7 topics and 15 lessons covering git config, init, clone, status, add, commit, branching, merging, merge conflicts, remotes, push/pull/fetch, log, diff, stash, tags, .gitignore, and pull request workflows.',
+      'New: 50+ flashcard items for Git commands with examples, memory notes, and accepted answer variants.',
+      'File tree improved: click a directory to expand/collapse it freely. Double-click to cd into it. Directories on the path to cwd auto-expand. Arrow indicators show open/closed state.',
+      'File tree depth increased from 5 to 8 levels.'
+    ] },
   { version:'0.23', date:'2026-08-31', title:'Everything unlocked',
     notes:[
       'All content is now fully accessible from the start — no progression gates, no locked topics, no sequential unlocking.',
@@ -207,7 +214,8 @@ const CHANGELOG = [
 const MODULES = [
   { num:1, name:'Linux Fundamentals', ready:true,
     blurb:'Navigation, file handling, viewing files, permissions and users, processes and jobs, help systems, packages, Vim and bash editing modes.' },
-  { num:2, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
+  { num:2, name:'Version Control with Git', ready:true,
+    blurb:'Git setup and config, staging and committing, branching and merging, remotes, push and pull, logs and diffs, pull requests.' },
   { num:3, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
   { num:4, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
   { num:5, name:'', ready:false, blurb:'Not added yet — this module\u2019s command list has not been supplied.' },
@@ -1316,6 +1324,406 @@ const CURRICULUM = [
   mod: 1, id:'lab01', name:'Lab 01', icon:'📋',
   blurb:'A simulated lab assignment: fix scripts, edit configs, run pipelines, and build reports.',
   lessons:[]
+},
+/* ================================================================
+   MODULE 2 — Version Control with Git
+   ================================================================ */
+{
+  mod: 2, id:'gitsetup', name:'Git Setup & Config', icon:'🔧',
+  blurb:'Installing Git, configuring your identity, and initializing repositories.',
+  lessons:[
+    {
+      id:'git1', title:'Who are you? — git config',
+      brief:'Before your first commit, Git needs to know your name and email. <b>git config</b> stores those.',
+      use: {
+        scene: "You just installed Git on a fresh Fedora system and you are about to make your first commit.",
+        lines: [{ c:"git config --global user.name 'Alice Smith'" },
+               { c:"git config --global user.email alice@example.com" },
+               { c:"git config --list", o:"user.name=Alice Smith\nuser.email=alice@example.com" }],
+        point: "--global writes to ~/.gitconfig so it applies to every repo. Without --global the setting lives in .git/config and applies only to that one repo."
+      },
+      items:[
+        { id:'git_config', cmd:'git config', what:'reads or writes Git configuration settings',
+          ex:"git config --global user.name 'Alice'", ans:['git config'], note:'Three scopes: --system (all users), --global (your account), local (one repo).' },
+        { id:'git_config_name', cmd:"git config --global user.name", what:'sets the author name Git stamps on every commit you make',
+          ex:"git config --global user.name 'Alice Smith'", ans:["git config --global user.name"], kind:'opt',
+          note:'Stored in ~/.gitconfig. Every commit records this name in its metadata.' },
+        { id:'git_config_email', cmd:"git config --global user.email", what:'sets the email address Git stamps on every commit',
+          ex:"git config --global user.email alice@example.com", ans:["git config --global user.email"], kind:'opt',
+          note:'GitHub uses this email to link commits to your account.' },
+        { id:'git_config_list', cmd:'git config --list', what:'shows all Git configuration settings currently in effect',
+          ex:'git config --list', ans:['git config --list','git config -l'], kind:'opt',
+          note:'Merges system, global, and local settings. Later entries override earlier ones.' },
+        { id:'git_config_editor', cmd:'git config --global core.editor', what:'sets the default text editor Git uses for commit messages',
+          ex:"git config --global core.editor vim", ans:["git config --global core.editor"], kind:'opt',
+          note:'Popular choices: vim, nano, code --wait. Without this, Git uses whatever $EDITOR is set to.' }
+      ]
+    },
+    {
+      id:'git2', title:'Starting a repository',
+      brief:'<b>git init</b> creates a new repository. <b>git clone</b> copies one that already exists.',
+      use: {
+        scene: "You want to start tracking a project folder with Git, or grab an existing project from GitHub.",
+        lines: [{ c:"mkdir myproject && cd myproject" },
+               { c:"git init", o:"Initialized empty Git repository in /home/student/myproject/.git/" },
+               { c:"git clone https://github.com/user/repo.git", o:"Cloning into 'repo'..." }],
+        point: "git init creates a .git directory that stores the entire history. git clone does the same thing but starts by downloading someone else's history first."
+      },
+      items:[
+        { id:'git_init', cmd:'git init', what:'creates a new empty Git repository in the current directory',
+          ex:'git init', out:'Initialized empty Git repository in /home/student/project/.git/',
+          note:'This creates the hidden .git folder. Everything Git knows about your project lives in there.' },
+        { id:'git_clone', cmd:'git clone', what:'copies a remote repository to your local machine with its full history',
+          ex:'git clone https://github.com/user/repo.git', ans:['git clone'],
+          note:'Clone = download + init + checkout. You get every branch and every commit, not just the latest files.' },
+        { id:'git_clone_dir', cmd:'git clone <url> <dir>', what:'clones a repository into a specific directory name you choose',
+          ex:'git clone https://github.com/user/repo.git myrepo', ans:['git clone <url> <dir>','git clone url dir'], kind:'opt',
+          note:'Without the directory argument, the folder name comes from the repository name.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitstage', name:'Staging & Committing', icon:'📦',
+  blurb:'The three areas of Git: working directory, staging area, and repository.',
+  lessons:[
+    {
+      id:'git3', title:'The three areas',
+      brief:'Git has three places your files live: the <b>working directory</b>, the <b>staging area</b> (index), and the <b>repository</b> (.git).',
+      use: {
+        scene: "You edited two files but only want to commit one of them right now.",
+        lines: [{ c:"git status", o:"Changes not staged for commit:\n  modified: app.js\n  modified: README.md" },
+               { c:"git add app.js" },
+               { c:"git status", o:"Changes to be committed:\n  modified: app.js\nChanges not staged for commit:\n  modified: README.md" },
+               { c:"git commit -m 'fix app bug'" }],
+        point: "git add moves a file from the working directory into the staging area. git commit takes everything in the staging area and saves it as a snapshot in the repository."
+      },
+      items:[
+        { id:'git_status', cmd:'git status', what:'shows which files are modified, staged, or untracked',
+          ex:'git status', note:'The most-used Git command. Run it constantly to see where things stand.' },
+        { id:'git_add', cmd:'git add', what:'moves changes from the working directory into the staging area',
+          ex:'git add app.js', ans:['git add'], note:'Staging = choosing what goes into the next commit. You can stage one file at a time.' },
+        { id:'git_add_all', cmd:'git add .', what:'stages every change in the current directory and below',
+          ex:'git add .', ans:['git add .','git add --all','git add -A'], kind:'opt',
+          note:'The dot means "everything here". git add -A does the same from the repo root.' },
+        { id:'git_commit', cmd:'git commit', what:'saves all staged changes as a new snapshot in the repository',
+          ex:'git commit', ans:['git commit'], note:'Opens your editor for a commit message. The message should say WHY, not WHAT.' },
+        { id:'git_commit_m', cmd:'git commit -m', what:'commits with an inline message so you skip the editor',
+          ex:"git commit -m 'add login page'", ans:['git commit -m'], kind:'opt',
+          note:'Use single quotes around the message. Keep it short (50 chars) and use imperative tense: "add" not "added".' },
+        { id:'git_commit_am', cmd:'git commit -am', what:'stages all tracked modified files and commits in one step',
+          ex:"git commit -am 'quick fix'", ans:['git commit -am','git commit -a -m'], kind:'opt',
+          note:'-a only stages files Git already tracks. Brand-new files still need git add first.' }
+      ]
+    },
+    {
+      id:'git4', title:'Undoing staging mistakes',
+      brief:'Staged something you did not mean to? <b>git restore --staged</b> pulls it back.',
+      use: {
+        scene: "You ran git add . and accidentally staged a file with your database password.",
+        lines: [{ c:"git add ." },
+               { c:"git status", o:"Changes to be committed:\n  new file: .env\n  modified: app.js" },
+               { c:"git restore --staged .env" },
+               { c:"git status", o:"Changes to be committed:\n  modified: app.js\nUntracked files:\n  .env" }],
+        point: "git restore --staged un-stages a file without touching your working directory. The file stays modified, it just will not be in the next commit."
+      },
+      items:[
+        { id:'git_restore_staged', cmd:'git restore --staged', what:'un-stages a file, moving it back to the working directory without losing changes',
+          ex:'git restore --staged .env', ans:['git restore --staged'],
+          note:'Does not delete your edits — it only removes the file from the staging area.' },
+        { id:'git_restore', cmd:'git restore', what:'discards uncommitted changes in a file, reverting it to the last committed version',
+          ex:'git restore app.js', ans:['git restore'],
+          note:'This throws away your edits. There is no undo — the working-directory copy is overwritten.' },
+        { id:'git_rm', cmd:'git rm', what:'removes a file from the working directory and stages the deletion',
+          ex:'git rm old.txt', ans:['git rm'],
+          note:'Combines rm + git add in one step. Use --cached to only un-track without deleting the file.' },
+        { id:'git_mv', cmd:'git mv', what:'renames or moves a file and stages the change in one step',
+          ex:'git mv old.js new.js', ans:['git mv'],
+          note:'Equivalent to mv + git add. Git detects renames automatically even without this command.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitbranch', name:'Branching & Merging', icon:'🌿',
+  blurb:'Parallel lines of development, feature branches, and bringing changes together.',
+  lessons:[
+    {
+      id:'git5', title:'Branches — parallel timelines',
+      brief:'A branch is a movable pointer to a commit. <b>git branch</b> creates one, <b>git checkout</b> or <b>git switch</b> moves to it.',
+      use: {
+        scene: "You need to add a login feature without disturbing the working main branch.",
+        lines: [{ c:"git branch feature-login" },
+               { c:"git switch feature-login", o:"Switched to branch 'feature-login'" },
+               { c:"git branch", o:"* feature-login\n  main" }],
+        point: "Branches are cheap — they are just a 40-byte pointer. Make one for every feature, every bug fix. Merge it when it is done; delete it when it is merged."
+      },
+      items:[
+        { id:'git_branch', cmd:'git branch', what:'lists all local branches, with a star next to the current one',
+          ex:'git branch', out:'* main\n  feature-login', note:'Add a name to create a new branch: git branch feature-login.' },
+        { id:'git_branch_new', cmd:'git branch <name>', what:'creates a new branch pointing at the current commit',
+          ex:'git branch feature-login', ans:['git branch <name>','git branch name'], kind:'opt',
+          note:'Creating a branch does NOT switch to it. You are still on whatever branch you were on.' },
+        { id:'git_switch', cmd:'git switch', what:'moves to a different branch, updating your working directory to match',
+          ex:'git switch feature-login', ans:['git switch'],
+          note:'git switch is the modern replacement for git checkout. Cleaner because it only does one thing.' },
+        { id:'git_switch_c', cmd:'git switch -c', what:'creates a new branch and switches to it in one step',
+          ex:'git switch -c feature-login', ans:['git switch -c','git checkout -b'], kind:'opt',
+          note:'-c = create. Same as git branch + git switch in one command.' },
+        { id:'git_checkout', cmd:'git checkout', what:'switches branches or restores files (the older, do-everything command)',
+          ex:'git checkout main', ans:['git checkout'],
+          note:'git checkout does too many things. Prefer git switch for branches and git restore for files.' },
+        { id:'git_branch_d', cmd:'git branch -d', what:'deletes a branch that has already been merged',
+          ex:'git branch -d feature-login', ans:['git branch -d','git branch --delete'], kind:'opt',
+          note:'-d is safe: it refuses to delete unmerged work. Use -D (capital) to force-delete.' },
+        { id:'git_branch_a', cmd:'git branch -a', what:'lists both local and remote-tracking branches',
+          ex:'git branch -a', ans:['git branch -a','git branch --all'], kind:'opt',
+          note:'Remote branches appear as remotes/origin/main. They update when you fetch.' }
+      ]
+    },
+    {
+      id:'git6', title:'Merging branches',
+      brief:'<b>git merge</b> brings changes from one branch into another. Fast-forward or three-way — Git decides.',
+      use: {
+        scene: "Your feature branch is done and tested. Time to bring it into main.",
+        lines: [{ c:"git switch main", o:"Switched to branch 'main'" },
+               { c:"git merge feature-login", o:"Updating a1b2c3d..e4f5g6h\nFast-forward\n login.js | 42 ++++\n 1 file changed, 42 insertions(+)" },
+               { c:"git branch -d feature-login", o:"Deleted branch feature-login (was e4f5g6h)." }],
+        point: "Always switch to the branch you want to merge INTO first. Then git merge <other-branch>. When done, delete the feature branch — its commits are now part of main."
+      },
+      items:[
+        { id:'git_merge', cmd:'git merge', what:'combines the history of another branch into the current branch',
+          ex:'git merge feature-login', ans:['git merge'],
+          note:'Fast-forward if main has not diverged. Three-way merge if both branches have new commits.' },
+        { id:'git_merge_noff', cmd:'git merge --no-ff', what:'forces a merge commit even when a fast-forward is possible',
+          ex:'git merge --no-ff feature-login', ans:['git merge --no-ff'], kind:'opt',
+          note:'Preserves the fact that a feature branch existed. Many teams require this for a clean history.' },
+        { id:'git_merge_abort', cmd:'git merge --abort', what:'cancels a merge in progress and returns to the state before the merge',
+          ex:'git merge --abort', ans:['git merge --abort'], kind:'opt',
+          note:'Use this when a merge conflict is too messy and you want to start over.' }
+      ]
+    },
+    {
+      id:'git7', title:'Merge conflicts',
+      brief:'When two branches change the same lines, Git cannot pick a winner. You resolve it by hand.',
+      use: {
+        scene: "You merged feature-login but both branches edited line 5 of app.js.",
+        lines: [{ c:"git merge feature-login", o:"CONFLICT (content): Merge conflict in app.js\nAutomatic merge failed; fix conflicts and then commit." },
+               { c:"cat app.js", o:"<<<<<<< HEAD\nconsole.log('main version');\n=======\nconsole.log('login version');\n>>>>>>> feature-login" },
+               { c:"vim app.js" },
+               { c:"git add app.js" },
+               { c:"git commit -m 'resolve merge conflict in app.js'" }],
+        point: "Git marks the conflict with <<<<<<< / ======= / >>>>>>>. Edit the file to keep what you want, remove the markers, then git add + git commit to finish the merge."
+      },
+      items:[
+        { id:'git_conflict', cmd:'git merge (conflict)', what:'when a merge cannot auto-resolve, Git pauses and marks the conflicting lines',
+          ex:'git merge feature', ans:['git merge'], kind:'cmd',
+          note:'Look for <<<<<<< HEAD, =======, >>>>>>> in the file. Delete the markers and keep the code you want.' },
+        { id:'git_diff_conflict', cmd:'git diff', what:'shows the differences between the working directory and the last commit',
+          ex:'git diff', ans:['git diff'],
+          note:'During a conflict, git diff shows exactly which lines are still unresolved.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitremote', name:'Remotes & Collaboration', icon:'🌐',
+  blurb:'Connecting your local repository to GitHub, pushing your work, and pulling changes.',
+  lessons:[
+    {
+      id:'git8', title:'Remotes — connecting to GitHub',
+      brief:'A <b>remote</b> is a bookmark to a repository on another machine. <b>origin</b> is the default name.',
+      use: {
+        scene: "You have a local repo and want to push it to a new GitHub repository.",
+        lines: [{ c:"git remote add origin https://github.com/alice/project.git" },
+               { c:"git remote -v", o:"origin  https://github.com/alice/project.git (fetch)\norigin  https://github.com/alice/project.git (push)" }],
+        point: "A remote is just a URL with a short name. origin is a convention, not a requirement — you can call it anything."
+      },
+      items:[
+        { id:'git_remote', cmd:'git remote', what:'lists the short names of all configured remote connections',
+          ex:'git remote', out:'origin', note:'Most repos have one remote called origin — the place you cloned from.' },
+        { id:'git_remote_v', cmd:'git remote -v', what:'shows remote names along with their fetch and push URLs',
+          ex:'git remote -v', ans:['git remote -v','git remote --verbose'], kind:'opt',
+          note:'Fetch and push URLs are usually the same, but they can differ.' },
+        { id:'git_remote_add', cmd:'git remote add', what:'registers a new remote connection with a name and URL',
+          ex:'git remote add origin https://github.com/user/repo.git', ans:['git remote add'],
+          note:'Use this after git init to connect a local repo to GitHub for the first time.' }
+      ]
+    },
+    {
+      id:'git9', title:'Push, pull, and fetch',
+      brief:'<b>git push</b> sends your commits upstream. <b>git pull</b> downloads and merges. <b>git fetch</b> downloads without merging.',
+      use: {
+        scene: "You committed changes locally and want to share them, and your teammate pushed new commits you need.",
+        lines: [{ c:"git push origin main", o:"Enumerating objects: 5, done.\nCounting objects: 100% (5/5), done.\nTo https://github.com/alice/project.git\n   a1b2c3d..e4f5g6h  main -> main" },
+               { c:"git pull origin main", o:"remote: Enumerating objects: 3, done.\nUpdating a1b2c3d..f7g8h9i\nFast-forward\n README.md | 2 ++\n 1 file changed, 2 insertions(+)" }],
+        point: "Push = upload your commits. Pull = download + merge their commits. Fetch = download only, so you can inspect before merging."
+      },
+      items:[
+        { id:'git_push', cmd:'git push', what:'uploads your local commits to a remote repository',
+          ex:'git push origin main', ans:['git push'],
+          note:'The first push often needs -u: git push -u origin main. After that, plain git push works.' },
+        { id:'git_push_u', cmd:'git push -u', what:'pushes and sets the upstream tracking branch so future pushes need no arguments',
+          ex:'git push -u origin main', ans:['git push -u','git push --set-upstream'], kind:'opt',
+          note:'-u = --set-upstream. After this, git push and git pull know where to go automatically.' },
+        { id:'git_pull', cmd:'git pull', what:'fetches changes from a remote and merges them into your current branch',
+          ex:'git pull origin main', ans:['git pull'],
+          note:'git pull = git fetch + git merge. If there are conflicts, you resolve them just like a local merge.' },
+        { id:'git_fetch', cmd:'git fetch', what:'downloads new commits and branches from a remote without changing your working directory',
+          ex:'git fetch origin', ans:['git fetch'],
+          note:'Safer than pull — you can inspect what changed with git log origin/main before merging.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitlog', name:'History & Diffs', icon:'📜',
+  blurb:'Viewing the commit log, comparing changes, and understanding what happened.',
+  lessons:[
+    {
+      id:'git10', title:'Reading the log',
+      brief:'<b>git log</b> shows the commit history. Every commit has a hash, author, date, and message.',
+      use: {
+        scene: "Something broke recently and you need to find out which commit changed what.",
+        lines: [{ c:"git log --oneline", o:"e4f5g6h fix login bug\na1b2c3d add login page\n9z8y7x6 initial commit" },
+               { c:"git log --oneline --graph", o:"* e4f5g6h (HEAD -> main) fix login bug\n* a1b2c3d add login page\n* 9z8y7x6 initial commit" }],
+        point: "--oneline compresses each commit to one line. --graph draws the branch structure. Together they give you the 10,000-foot view."
+      },
+      items:[
+        { id:'git_log', cmd:'git log', what:'shows the full commit history with hash, author, date, and message',
+          ex:'git log', ans:['git log'],
+          note:'Press q to exit the pager. Space to page down — same keys as less.' },
+        { id:'git_log_oneline', cmd:'git log --oneline', what:'shows each commit as a single line: short hash and message',
+          ex:'git log --oneline', ans:['git log --oneline'], kind:'opt',
+          note:'The short hash (7 characters) is enough to identify any commit uniquely.' },
+        { id:'git_log_graph', cmd:'git log --graph', what:'draws an ASCII branch diagram alongside the commit history',
+          ex:'git log --oneline --graph', ans:['git log --graph'], kind:'opt',
+          note:'Best combined with --oneline so the graph is readable. Add --all to see every branch.' },
+        { id:'git_log_n', cmd:'git log -n', what:'limits the output to the most recent n commits',
+          ex:'git log -3', ans:['git log -n','git log -1','git log -3'], kind:'opt',
+          note:'-3 means show only the last 3 commits. Useful on repos with thousands of commits.' }
+      ]
+    },
+    {
+      id:'git11', title:'Comparing changes with diff',
+      brief:'<b>git diff</b> shows line-by-line changes. Green lines are added, red lines are removed.',
+      use: {
+        scene: "You edited app.js and want to review your changes before staging.",
+        lines: [{ c:"git diff", o:"diff --git a/app.js b/app.js\n--- a/app.js\n+++ b/app.js\n@@ -1,3 +1,4 @@\n const app = require('express')();\n+const db = require('./db');\n app.get('/', (req, res) => {" },
+               { c:"git diff --staged", o:"(shows changes that are staged for commit)" }],
+        point: "Plain git diff shows unstaged changes. git diff --staged shows what is about to be committed. Run both before every commit to make sure you know exactly what is going in."
+      },
+      items:[
+        { id:'git_diff', cmd:'git diff', what:'shows unstaged changes between the working directory and the staging area',
+          ex:'git diff', ans:['git diff'],
+          note:'Lines starting with + are additions. Lines starting with - are deletions.' },
+        { id:'git_diff_staged', cmd:'git diff --staged', what:'shows changes that have been staged and will go into the next commit',
+          ex:'git diff --staged', ans:['git diff --staged','git diff --cached'], kind:'opt',
+          note:'--staged and --cached are synonyms. Use this right before git commit to double-check.' },
+        { id:'git_diff_branch', cmd:'git diff <branch>', what:'shows the difference between your current branch and another branch',
+          ex:'git diff main', ans:['git diff main','git diff <branch>'], kind:'opt',
+          note:'Useful before merging — see exactly what the merge will bring in.' },
+        { id:'git_show', cmd:'git show', what:'displays the details and diff of a specific commit',
+          ex:'git show a1b2c3d', ans:['git show'],
+          note:'Give it a commit hash to see what changed in that commit. HEAD means the latest commit.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitmisc', name:'Stashing & Tagging', icon:'🏷️',
+  blurb:'Saving work in progress and marking important points in history.',
+  lessons:[
+    {
+      id:'git12', title:'Stashing — a shelf for work in progress',
+      brief:'<b>git stash</b> saves your uncommitted changes and gives you a clean working directory.',
+      use: {
+        scene: "You are mid-feature when an urgent bug comes in. You need to switch branches but you are not ready to commit.",
+        lines: [{ c:"git stash", o:"Saved working directory and index state WIP on feature: a1b2c3d add login" },
+               { c:"git switch main" },
+               { c:"git switch feature-login" },
+               { c:"git stash pop", o:"On branch feature-login\nChanges not staged for commit:\n  modified: login.js" }],
+        point: "git stash is like putting your work on a shelf. git stash pop takes it back off. Your working directory is clean in between, so you can switch branches safely."
+      },
+      items:[
+        { id:'git_stash', cmd:'git stash', what:'saves uncommitted changes onto a stack and reverts to a clean state',
+          ex:'git stash', ans:['git stash'],
+          note:'Both staged and unstaged changes are stashed. Add -u to also stash untracked files.' },
+        { id:'git_stash_pop', cmd:'git stash pop', what:'reapplies the most recently stashed changes and removes them from the stack',
+          ex:'git stash pop', ans:['git stash pop'],
+          note:'Pop = apply + drop. If you want to keep the stash entry, use git stash apply instead.' },
+        { id:'git_stash_list', cmd:'git stash list', what:'shows all stashed entries on the stack',
+          ex:'git stash list', out:'stash@{0}: WIP on feature: a1b2c3d\nstash@{1}: WIP on main: 9z8y7x6',
+          ans:['git stash list'], kind:'opt',
+          note:'Each entry has an index. git stash pop stash@{1} pops a specific one.' }
+      ]
+    },
+    {
+      id:'git13', title:'Tags — naming a commit',
+      brief:'A <b>tag</b> is a permanent label on a commit. Used for release versions like v1.0.',
+      use: {
+        scene: "Your project is ready for release and you want to mark this exact commit as version 1.0.",
+        lines: [{ c:"git tag v1.0" },
+               { c:"git tag", o:"v1.0" },
+               { c:"git push origin v1.0", o:"To https://github.com/alice/project.git\n * [new tag]  v1.0 -> v1.0" }],
+        point: "Tags do not move — unlike branches, they stay on one commit forever. Push them explicitly; git push does not send tags by default."
+      },
+      items:[
+        { id:'git_tag', cmd:'git tag', what:'lists all tags, or creates a lightweight tag on the current commit',
+          ex:'git tag v1.0', ans:['git tag'],
+          note:'A lightweight tag is just a name pointing at a commit. No extra metadata.' },
+        { id:'git_tag_a', cmd:'git tag -a', what:'creates an annotated tag with a message, tagger name, and date',
+          ex:"git tag -a v1.0 -m 'first release'", ans:['git tag -a'], kind:'opt',
+          note:'Annotated tags are stored as full objects. Use them for releases; lightweight tags for bookmarks.' },
+        { id:'git_push_tags', cmd:'git push --tags', what:'pushes all local tags to the remote',
+          ex:'git push --tags', ans:['git push --tags'], kind:'opt',
+          note:'By default git push ignores tags. --tags sends them all at once.' }
+      ]
+    }
+  ]
+},
+{
+  mod: 2, id:'gitignore', name:'.gitignore & Best Practices', icon:'📝',
+  blurb:'Keeping secrets out of Git, writing good commit messages, and pull request workflows.',
+  lessons:[
+    {
+      id:'git14', title:'.gitignore — keeping files out of Git',
+      brief:'A <b>.gitignore</b> file tells Git which files to never track: build artifacts, secrets, OS junk.',
+      use: {
+        scene: "Your project keeps showing node_modules/ and .env in git status. You want Git to ignore them permanently.",
+        lines: [{ c:"cat .gitignore", o:"node_modules/\n.env\n*.log\nbuild/" },
+               { c:"git status", o:"On branch main\nnothing to commit, working tree clean" }],
+        point: "One pattern per line. Directories end with /. Wildcards work. Put .gitignore in the repo root and commit it — everyone on the team gets the same ignore rules."
+      },
+      items:[
+        { id:'git_gitignore', cmd:'.gitignore', what:'a file listing patterns of files and directories Git should never track',
+          ex:'echo "node_modules/" >> .gitignore', ans:['.gitignore','gitignore'], kind:'cmd',
+          note:'Commit .gitignore itself — it is a project setting, not a personal preference. One pattern per line.' },
+        { id:'git_ignore_pattern', cmd:'*.log', what:'a .gitignore wildcard pattern that matches all files ending in .log',
+          ex:'*.log', ans:['*.log'], kind:'opt',
+          note:'* matches anything. **/ matches directories at any depth. ! negates a pattern (un-ignore a file).' }
+      ]
+    },
+    {
+      id:'git15', title:'The pull request workflow',
+      brief:'On GitHub, you do not push directly to main. You push a branch, open a <b>pull request</b>, get it reviewed, then merge.',
+      use: {
+        scene: "You finished your feature branch and want your teammate to review it before it goes into main.",
+        lines: [{ c:"git push -u origin feature-login" },
+               { o:"Open a Pull Request on GitHub:\n  base: main ← compare: feature-login\n  Write a description. Request a reviewer." },
+               { o:"After approval, click Merge on GitHub.\n  Then locally: git switch main && git pull origin main" }],
+        point: "Pull requests are where code review happens. The branch goes in only after someone else approves. This keeps main stable and gives the team a history of decisions."
+      },
+      items:[
+        { id:'git_pr', cmd:'Pull Request', what:'a GitHub feature that proposes merging one branch into another, with discussion and review',
+          ex:'git push -u origin feature-login → Open PR on GitHub', ans:['pull request','PR','pr'], kind:'cmd',
+          note:'PRs are not a Git command — they are a GitHub/GitLab feature built on top of branches.' },
+        { id:'git_pr_workflow', cmd:'Fork & PR workflow', what:'fork the repo, clone your fork, push a branch, open a PR back to the original',
+          ex:'git clone <your-fork> → git push → Open PR', ans:['fork and pr','fork & pr','fork'], kind:'cmd',
+          note:'Used for open-source contributions. You cannot push to repos you do not own, so you fork first.' }
+      ]
+    }
+  ]
 }
 ];
 

@@ -12,6 +12,20 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.24] — 2026-08-31
+
+### Module 2 — Version Control with Git
+
+- New: Module 2 adds 7 topics and 15 lessons covering git config, init, clone, status, add, commit, branching, merging, merge conflicts, remotes, push/pull/fetch, log, diff, stash, tags, .gitignore, and pull request workflows.
+- New: 50+ flashcard items for Git commands with examples, memory notes, and accepted answer variants.
+- New: 30 missions for Module 2 (m74–m103) across 6 tours: Git setup, Staging & committing, Branching & merging, Remotes & collaboration, History & diffs, Stashing & tagging.
+- New: 18 build-the-command challenges for Module 2 (c43–c60).
+- New: Simulated `git` command in the terminal — all major git subcommands produce realistic output.
+- File tree improved: click a directory to expand/collapse it freely. Double-click to cd into it. Directories on the path to cwd auto-expand. Arrow indicators show open/closed state.
+- File tree depth increased from 5 to 8 levels.
+
+---
+
 ## [0.23] — 2026-08-31
 
 ### Everything unlocked

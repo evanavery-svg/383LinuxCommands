@@ -894,5 +894,140 @@ Shell.prototype.cmds = {
     return out;
   },
 
-  sleep() { return [this.note('(sleeping...)')]; }
+  sleep() { return [this.note('(sleeping...)')]; },
+
+  git(args, argv) {
+    if (!args.length) return [this.note('usage: git <command> [<args>]\n\nCommon commands:\n   init       Create an empty Git repository\n   clone      Clone a repository\n   status     Show the working tree status\n   add        Add file contents to the index\n   commit     Record changes to the repository\n   branch     List, create, or delete branches\n   switch     Switch branches\n   merge      Join two development histories\n   push       Update remote refs\n   pull       Fetch and integrate with another repository\n   log        Show commit logs\n   diff       Show changes between commits')];
+    const sub = args[0];
+    const rest = args.slice(1);
+    const line = argv.join(' ');
+    const { f, ops } = this.parse(rest);
+    switch (sub) {
+      case 'init':
+        return [this.out('Initialized empty Git repository in ' + this.cwd + '/.git/')];
+      case 'clone':
+        if (!ops.length) return [this.err('fatal: You must specify a repository to clone.')];
+        { const name = ops[1] || ops[0].split('/').pop().replace(/\.git$/, '');
+          return [this.out("Cloning into '" + name + "'..."), this.out('done.')]; }
+      case 'config': {
+        if (f.has('l') || rest.includes('--list'))
+          return [this.out('user.name=student'), this.out('user.email=student@example.com'), this.out('core.editor=vim')];
+        if (rest.length >= 2) {
+          const key = rest.find(a => !a.startsWith('-'));
+          const val = rest.filter(a => !a.startsWith('-')).slice(1).join(' ');
+          if (val) return [this.note('Config set: ' + key + ' = ' + val)];
+          if (key === 'user.name') return [this.out('student')];
+          if (key === 'user.email') return [this.out('student@example.com')];
+          return [this.out('')];
+        }
+        return [this.note('usage: git config [--global] <key> [<value>]')]; }
+      case 'status':
+        return [this.out('On branch main'), this.out('nothing to commit, working tree clean')];
+      case 'add':
+        if (!ops.length && !rest.includes('.') && !rest.includes('-A') && !rest.includes('--all'))
+          return [this.err('Nothing specified, nothing added.')];
+        return [this.note('Changes staged for commit.')];
+      case 'commit': {
+        const hasM = rest.includes('-m') || rest.includes('-am') || rest.some(a => /^-[a-z]*m/.test(a));
+        if (hasM) return [this.out('[main abc1234] ' + (rest.filter(a => !a.startsWith('-')).join(' ') || 'commit')),
+                          this.out(' 1 file changed, 1 insertion(+)')];
+        return [this.note('(editor opens for commit message — type your message, save, and close)')]; }
+      case 'branch': {
+        if (f.has('d') || f.has('D')) return [this.out('Deleted branch ' + (ops[0]||'branch') + '.')];
+        if (ops.length) return [this.note('Branch ' + ops[0] + ' created.')];
+        const branches = f.has('a')
+          ? ['* main', '  remotes/origin/main']
+          : ['* main'];
+        return branches.map(b => this.out(b)); }
+      case 'switch':
+      case 'checkout': {
+        const create = f.has('c') || f.has('b');
+        const name = ops[0] || 'main';
+        if (create) return [this.out("Switched to a new branch '" + name + "'")];
+        return [this.out("Switched to branch '" + name + "'")]; }
+      case 'merge': {
+        if (rest.includes('--abort')) return [this.out('Merge aborted.')];
+        if (!ops.length) return [this.err('fatal: No remote for the current branch.')];
+        return [this.out('Updating a1b2c3d..e4f5g6h'), this.out('Fast-forward'),
+                this.out(' 1 file changed, 1 insertion(+)')]; }
+      case 'push': {
+        const remote = ops[0] || 'origin';
+        const branch = ops[1] || 'main';
+        if (rest.includes('--tags'))
+          return [this.out('To https://github.com/student/project.git'), this.out(' * [new tag]  v1.0 -> v1.0')];
+        return [this.out('Enumerating objects: 5, done.'), this.out('Counting objects: 100% (5/5), done.'),
+                this.out('To https://github.com/student/project.git'),
+                this.out('   a1b2c3d..e4f5g6h  ' + branch + ' -> ' + branch)]; }
+      case 'pull': {
+        const remote = ops[0] || 'origin';
+        const branch = ops[1] || 'main';
+        return [this.out('remote: Enumerating objects: 3, done.'),
+                this.out('Updating a1b2c3d..f7g8h9i'), this.out('Fast-forward'),
+                this.out(' README.md | 2 ++'), this.out(' 1 file changed, 2 insertions(+)')]; }
+      case 'fetch':
+        return [this.out('remote: Enumerating objects: 3, done.'),
+                this.out('From https://github.com/student/project.git'),
+                this.out('   a1b2c3d..f7g8h9i  main -> origin/main')];
+      case 'log': {
+        if (f.has('n') || rest.some(a => /^-\d+$/.test(a))) {
+          const n = parseInt(rest.find(a => /^-\d+$/.test(a))?.slice(1) || '3');
+          const hashes = ['e4f5g6h','a1b2c3d','9z8y7x6'];
+          const msgs = ['fix login bug','add login page','initial commit'];
+          const lines = [];
+          for (let i = 0; i < Math.min(n, 3); i++) {
+            if (rest.includes('--oneline')) lines.push(this.out(hashes[i] + ' ' + msgs[i]));
+            else { lines.push(this.out('commit ' + hashes[i] + '0'.repeat(33)));
+                   lines.push(this.out('Author: student <student@example.com>'));
+                   lines.push(this.out('Date:   Wed Aug 20 09:31:07 2025'));
+                   lines.push(this.out('')); lines.push(this.out('    ' + msgs[i])); lines.push(this.out('')); }
+          }
+          return lines;
+        }
+        if (rest.includes('--oneline'))
+          return [this.out('e4f5g6h fix login bug'), this.out('a1b2c3d add login page'), this.out('9z8y7x6 initial commit')];
+        return [{ t:'app', app:'pager', content:
+          'commit e4f5g6h' + '0'.repeat(33) + '\nAuthor: student <student@example.com>\nDate:   Wed Aug 20 09:31:07 2025\n\n    fix login bug\n\n' +
+          'commit a1b2c3d' + '0'.repeat(33) + '\nAuthor: student <student@example.com>\nDate:   Tue Aug 19 14:22:01 2025\n\n    add login page\n\n' +
+          'commit 9z8y7x6' + '0'.repeat(33) + '\nAuthor: student <student@example.com>\nDate:   Mon Aug 18 10:00:00 2025\n\n    initial commit\n' }]; }
+      case 'diff':
+        if (rest.includes('--staged') || rest.includes('--cached'))
+          return [this.out('diff --git a/app.js b/app.js'), this.out('--- a/app.js'), this.out('+++ b/app.js'),
+                  this.out('@@ -1,3 +1,4 @@'), this.out(" const app = require('express')();"),
+                  this.out("+const db = require('./db');")];
+        return [this.out('diff --git a/README.md b/README.md'), this.out('--- a/README.md'), this.out('+++ b/README.md'),
+                this.out('@@ -1 +1,2 @@'), this.out(' # My Project'), this.out('+A sample project.')];
+      case 'show':
+        return [this.out('commit e4f5g6h' + '0'.repeat(33)), this.out('Author: student <student@example.com>'),
+                this.out('Date:   Wed Aug 20 09:31:07 2025'), this.out(''), this.out('    fix login bug'),
+                this.out(''), this.out('diff --git a/app.js b/app.js'),
+                this.out('+  fixed the bug')];
+      case 'stash':
+        if (rest[0] === 'pop') return [this.out('On branch main'), this.out('Changes not staged for commit:'),
+                                        this.out('  modified: app.js'), this.out('Dropped refs/stash@{0}')];
+        if (rest[0] === 'list') return [this.out('stash@{0}: WIP on main: a1b2c3d fix login bug')];
+        if (rest[0] === 'apply') return [this.out('On branch main'), this.out('Changes not staged for commit:'),
+                                          this.out('  modified: app.js')];
+        return [this.out('Saved working directory and index state WIP on main: a1b2c3d fix login bug')];
+      case 'tag':
+        if (f.has('a')) return [this.note('Tag ' + (ops[0]||'v1.0') + ' created (annotated).')];
+        if (ops.length) return [this.note('Tag ' + ops[0] + ' created.')];
+        return [this.out('v1.0')];
+      case 'remote':
+        if (rest[0] === 'add') return [this.note('Remote ' + (rest[1]||'origin') + ' added.')];
+        if (f.has('v')) return [this.out('origin  https://github.com/student/project.git (fetch)'),
+                                this.out('origin  https://github.com/student/project.git (push)')];
+        return [this.out('origin')];
+      case 'restore':
+        if (rest.includes('--staged')) return [this.note('Unstaged: ' + (ops[0]||'file'))];
+        return [this.note('Restored: ' + (ops[0]||'file'))];
+      case 'rm':
+        if (!ops.length) return [this.err('fatal: No pathspec given.')];
+        return [this.out('rm \'' + ops[0] + '\'')];
+      case 'mv':
+        if (ops.length < 2) return [this.err('fatal: destination required.')];
+        return [this.note('Renamed ' + ops[0] + ' -> ' + ops[1])];
+      default:
+        return [this.err('git: \'' + sub + '\' is not a git command.')];
+    }
+  }
 };

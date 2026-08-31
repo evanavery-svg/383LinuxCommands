@@ -155,7 +155,77 @@ const BUILD_TASKS = [
     expect:'echo done > lab-01/report.txt' },
   { id:'c42', mod:1, cat:'lab01', teach:['printf'],
     goal:'Use printf to print your username via command substitution: User: student',
-    expect:'printf \'User: %s\\n\' "$(whoami)"' }
+    expect:'printf \'User: %s\\n\' "$(whoami)"' },
+
+  /* ================================================================
+     MODULE 2 — Version Control with Git
+     ================================================================ */
+
+  /* ---- git setup & config ---- */
+  { id:'c43', mod:2, cat:'gitsetup', teach:['git_config_name','git_config_email'],
+    goal:'Set your Git name to "Alice Smith" and email to alice@example.com, both globally.',
+    expect:"git config --global user.name 'Alice Smith'; git config --global user.email alice@example.com" },
+  { id:'c44', mod:2, cat:'gitsetup', teach:['git_init'],
+    goal:'Create a new directory called myproject, move into it, and initialize a Git repository.',
+    expect:'mkdir myproject; cd myproject; git init' },
+  { id:'c45', mod:2, cat:'gitsetup', teach:['git_clone','git_clone_dir'],
+    goal:'Clone https://github.com/user/repo.git into a directory called my-repo.',
+    expect:'git clone https://github.com/user/repo.git my-repo' },
+
+  /* ---- staging & committing ---- */
+  { id:'c46', mod:2, cat:'gitstage', teach:['git_add','git_commit_m'],
+    goal:'Stage app.js and commit it with the message "add app".',
+    expect:"git add app.js; git commit -m 'add app'" },
+  { id:'c47', mod:2, cat:'gitstage', teach:['git_add_all','git_commit_m'],
+    goal:'Stage everything in the current directory and commit with the message "initial commit".',
+    expect:"git add .; git commit -m 'initial commit'" },
+  { id:'c48', mod:2, cat:'gitstage', teach:['git_commit_am'],
+    goal:'Stage all tracked changes and commit with the message "quick fix", in a single command.',
+    expect:"git commit -am 'quick fix'" },
+  { id:'c49', mod:2, cat:'gitstage', teach:['git_restore_staged'],
+    goal:'You accidentally staged .env. Unstage it without losing the file.',
+    expect:'git restore --staged .env' },
+
+  /* ---- branching & merging ---- */
+  { id:'c50', mod:2, cat:'gitbranch', teach:['git_switch_c'],
+    goal:'Create a new branch called feature-nav and switch to it in one command.',
+    expect:'git switch -c feature-nav' },
+  { id:'c51', mod:2, cat:'gitbranch', teach:['git_switch','git_merge','git_branch_d'],
+    goal:'Switch to main, merge feature-nav into it, then delete the feature-nav branch.',
+    expect:'git switch main; git merge feature-nav; git branch -d feature-nav' },
+  { id:'c52', mod:2, cat:'gitbranch', teach:['git_merge_noff'],
+    goal:'Merge feature-login into the current branch, forcing a merge commit even if fast-forward is possible.',
+    expect:'git merge --no-ff feature-login' },
+
+  /* ---- remotes & push/pull ---- */
+  { id:'c53', mod:2, cat:'gitremote', teach:['git_remote_add'],
+    goal:'Add a remote called origin pointing to https://github.com/alice/project.git.',
+    expect:'git remote add origin https://github.com/alice/project.git' },
+  { id:'c54', mod:2, cat:'gitremote', teach:['git_push_u'],
+    goal:'Push your main branch to origin and set it as the upstream tracking branch.',
+    expect:'git push -u origin main' },
+  { id:'c55', mod:2, cat:'gitremote', teach:['git_pull'],
+    goal:'Pull the latest changes from origin into your main branch.',
+    expect:'git pull origin main' },
+  { id:'c56', mod:2, cat:'gitremote', teach:['git_fetch'],
+    goal:'Download new commits from origin without merging them into your working branch.',
+    expect:'git fetch origin' },
+
+  /* ---- history & diffs ---- */
+  { id:'c57', mod:2, cat:'gitlog', teach:['git_log_oneline','git_log_graph'],
+    goal:'Show the commit history in a compact one-line format with a branch graph.',
+    expect:'git log --oneline --graph' },
+  { id:'c58', mod:2, cat:'gitlog', teach:['git_diff_staged'],
+    goal:'Show the changes that are staged and about to be committed.',
+    expect:'git diff --staged' },
+
+  /* ---- stashing & tagging ---- */
+  { id:'c59', mod:2, cat:'gitmisc', teach:['git_stash','git_stash_pop'],
+    goal:'Stash your current changes, then reapply them.',
+    expect:'git stash; git stash pop' },
+  { id:'c60', mod:2, cat:'gitmisc', teach:['git_tag','git_push_tags'],
+    goal:'Tag the current commit as v2.0, then push all tags to the remote.',
+    expect:'git tag v2.0; git push --tags' }
 ];
 
 const BUILD_BY_ID = Object.fromEntries(BUILD_TASKS.map(t => [t.id, t]));
