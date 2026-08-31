@@ -6,28 +6,28 @@
 const SCENARIOS = [
   {
     id: 'sc1', mod: 1, difficulty: 1,
-    title: 'The broken script',
-    description: 'A developer left a script at ~/debug/run.sh that is supposed to print "Build complete" but it will not run. Figure out what is wrong and fix it so it runs successfully.',
+    title: 'The missing log',
+    description: 'The ops team says their deploy script at ~/deploy/publish.sh is failing silently — it should append a timestamped line to ~/deploy/deploy.log, but the log file does not exist and the script has a typo in the output path. Find the bug and make it work.',
     setup(sh) {
       const home = sh.node('/home/student');
-      home.children.debug = dir(0o755, {
-        'run.sh': file("#!/usr/bin/env bsh\necho 'Build complete'\n", 0o644, USER, 55)
+      home.children.deploy = dir(0o755, {
+        'publish.sh': file("#!/usr/bin/env bash\necho \"[$(date)] deploy finished\" >> ~/deploy/deploi.log\n", 0o755, USER, 90)
       });
     },
     checks: [
-      { desc: 'Shebang says bash, not bsh',
-        test: sh => { const n = sh.node('/home/student/debug/run.sh'); return n && /^#!.*\bbash\b/.test(n.content); } },
-      { desc: 'Script is executable',
-        test: sh => { const n = sh.node('/home/student/debug/run.sh'); return n && !!(n.mode & 0o111); } },
-      { desc: 'Script was run successfully',
-        test: sh => sh.log.some(l => /\.\/run\.sh|debug\/run\.sh/.test(l)) }
+      { desc: 'Script redirects to deploy.log, not deploi.log',
+        test: sh => { const n = sh.node('/home/student/deploy/publish.sh'); return n && /deploy\.log/.test(n.content) && !/deploi\.log/.test(n.content); } },
+      { desc: 'deploy.log exists after running the script',
+        test: sh => !!sh.node('/home/student/deploy/deploy.log') },
+      { desc: 'Script was run',
+        test: sh => sh.log.some(l => /publish\.sh/.test(l)) }
     ],
     hints: [
-      'Start by reading the script: cat debug/run.sh',
-      'Look at line 1 — the shebang. Is the interpreter name correct?',
-      'Fix the shebang with sed, then make it executable with chmod.'
+      'Read the script first: cat deploy/publish.sh',
+      'Look at the filename after >> — is it spelled right?',
+      'Fix the typo with sed, then run the script.'
     ],
-    teach: ['cat', 'chmod_ux']
+    teach: ['cat', 'sed_i']
   },
 
   {

@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.24';
+const VERSION = '0.25';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.25', date:'2026-08-31', title:'Labs — standalone lab simulations',
+    notes:[
+      'Labs are now fully independent simulations, separate from terminal missions and scenarios.',
+      'Lab 01 runs in its own shell with a step-by-step sidebar showing section headers, progress bar, hint button, and live checkmarks.',
+      'Lab missions (m56-m73) no longer appear in the terminal mission list — they belong to the lab system.',
+      'Scenario 1 replaced: "The missing log" (deploy script typo) replaces the old broken-script scenario that overlapped with Lab 01.'
+    ] },
   { version:'0.24', date:'2026-08-31', title:'Module 2 — Version Control with Git',
     notes:[
       'New: Module 2 adds 7 topics and 15 lessons covering git config, init, clone, status, add, commit, branching, merging, merge conflicts, remotes, push/pull/fetch, log, diff, stash, tags, .gitignore, and pull request workflows.',

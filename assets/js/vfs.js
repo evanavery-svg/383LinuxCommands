@@ -198,9 +198,11 @@ class Shell {
     let tagged = this.tokenize(line, true);
     if (!tagged.length) return [];
     let argv = tagged.map(t => t.v);
-    // output redirection: cmd > file
-    let redir = null;
-    const gtIdx = argv.indexOf('>');
+    // output redirection: cmd > file  or  cmd >> file
+    let redir = null, redirAppend = false;
+    let gtIdx = argv.indexOf('>>');
+    if (gtIdx >= 0) { redirAppend = true; }
+    else { gtIdx = argv.indexOf('>'); }
     if (gtIdx >= 0) {
       redir = argv[gtIdx + 1] || null;
       argv = argv.slice(0, gtIdx);
@@ -249,7 +251,14 @@ class Shell {
     if (redir) {
       const content = result.filter(o => o.t === 'out').map(o => o.s).join('\n') + '\n';
       const { parent, name } = this.parentOf(redir);
-      if (parent) parent.children[name] = file(content, 0o666 & ~this.umask, USER, 62);
+      if (parent) {
+        const existing = parent.children[name];
+        if (redirAppend && existing && existing.type === 'file') {
+          existing.content = (existing.content || '') + content;
+        } else {
+          parent.children[name] = file(content, 0o666 & ~this.umask, USER, 62);
+        }
+      }
       return [];
     }
     return result;

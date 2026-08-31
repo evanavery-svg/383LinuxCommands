@@ -13,6 +13,7 @@ const DEFAULTS = {
   learned: {},              // id -> true once its set has been finished
   quick: {},                // id -> best quiz result so far (true = got it right)
   missions: {},             // id -> true
+  labs: {},                 // id -> {done:n, complete:bool}
   badges: {},               // id -> date unlocked
   chunks: {},               // legacy set-completion marks, kept so old saves still read
   reviews: {},              // category id -> best score on that topic's review round
@@ -442,6 +443,7 @@ const A = {
   treeExpanded: new Set(),
   showScenarios: false,
   scenario: null,
+  lab: null,
   isearch: null,
   _manId: 0
 };
@@ -655,6 +657,17 @@ function renderModuleHome(s, num) {
             <div class="meta"><span>${cdone}/${csets.length} sets</span><span>${pct}%</span></div>
             <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
         }
+        const lab = LABS.find(l => l.id === c.id);
+        if (lab) {
+          const lp = P.labs && P.labs[lab.id];
+          const stepsDone = lp ? lp.done : 0;
+          const pctLab = Math.round(stepsDone / lab.steps.length * 100);
+          return `<button class="card" data-labcat="${c.id}">
+            <h3>${c.icon} ${esc(c.name)}</h3>
+            <p>${esc(c.blurb)}</p>
+            <div class="meta"><span>${stepsDone}/${lab.steps.length} steps</span><span>${lp && lp.complete ? '✓ Complete' : '🖥️ Lab'}</span></div>
+            <div class="bar" style="margin-top:6px"><i style="width:${pctLab}%"></i></div></button>`;
+        }
         const msolved = catMissions.filter(mi => P.missions[mi.id]).length;
         return `<button class="card" data-labcat="${c.id}">
           <h3>${c.icon} ${esc(c.name)}</h3>
@@ -677,6 +690,8 @@ function renderModuleHome(s, num) {
                { title:'Build the command' });
   s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => go('learn', b.dataset.cat));
   s.querySelectorAll('[data-labcat]').forEach(b => b.onclick = () => {
+    const lab = LABS.find(l => l.id === b.dataset.labcat);
+    if (lab) { startLab(lab.id); return; }
     const cat = CURRICULUM.find(c => c.id === b.dataset.labcat);
     if (cat) {
       const first = MISSIONS.find(mi => mi.tour === cat.name && !P.missions[mi.id])
@@ -1791,6 +1806,74 @@ function exitScenario() {
   render();
   setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
 }
+
+function startLab(id) {
+  const lab = LAB_BY_ID[id];
+  if (!lab) return;
+  const sh = new Shell();
+  const saved = P.labs[id];
+  const stepsDone = saved ? saved.done : 0;
+  A.lab = { data: lab, sh, stepIdx: stepsDone, hintShown: false };
+  A.sh = sh;
+  A.buffer = [];
+  A.showTree = false;
+  A.showScenarios = false;
+  A.scenario = null;
+  pushTerm({ t:'note', s:'--- ' + lab.title + ' ---' });
+  pushTerm({ t:'out', s: lab.subtitle });
+  pushTerm({ t:'out', s:'' });
+  if (stepsDone > 0 && stepsDone < lab.steps.length) {
+    pushTerm({ t:'note', s:`Resuming from step ${stepsDone + 1} of ${lab.steps.length}.` });
+  }
+  go('terminal');
+  setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+}
+function exitLab() {
+  A.lab = null;
+  A.sh = new Shell();
+  A.buffer = [];
+  pushTerm({ t:'note', s:'Lab exited. Filesystem restored.' });
+  render();
+  setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+}
+function renderLabPanel() {
+  const lb = A.lab;
+  if (!lb) return '';
+  const d = lb.data;
+  const total = d.steps.length;
+  const cur = lb.stepIdx;
+  const allDone = cur >= total;
+  const pct = Math.round(cur / total * 100);
+  let stepsHtml = '';
+  let lastSection = '';
+  for (let i = 0; i < total; i++) {
+    const step = d.steps[i];
+    if (step.section && step.section !== lastSection) {
+      lastSection = step.section;
+      stepsHtml += `<div class="lab-section">${esc(step.section)}</div>`;
+    }
+    const done = i < cur;
+    const active = i === cur;
+    stepsHtml += `<div class="check-item${done ? ' passed' : ''}${active ? ' active' : ''}">
+      <span class="check-icon">${done ? '✓' : active ? '▸' : '○'}</span>
+      <span>${esc(step.desc)}</span>
+    </div>`;
+  }
+  return `<div class="lab-panel" id="labpanel">
+    <h3>${esc(d.title)}</h3>
+    <p class="muted" style="font-size:12px;margin:4px 0 10px">${esc(d.subtitle)}</p>
+    <div class="bar" style="margin-bottom:8px"><i style="width:${pct}%"></i></div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:10px">Step ${Math.min(cur + 1, total)} of ${total}</div>
+    <div class="check-list">${stepsHtml}</div>
+    ${allDone ? '<div class="note" style="margin-top:10px;color:var(--good);font-weight:700">Lab complete!</div>' : ''}
+    <div id="labhintbox"></div>
+    <div class="row" style="margin-top:12px">
+      ${!allDone ? '<button class="btn ghost sm" data-lhint>Hint</button>' : ''}
+      <button class="btn ghost sm" data-lexit>${allDone ? 'Continue' : 'Exit lab'}</button>
+    </div>
+  </div>`;
+}
+
 function renderScenarioPanel() {
   const sc = A.scenario;
   if (!sc) return '';
@@ -1835,14 +1918,15 @@ function renderScenarioPicker() {
 }
 function renderTerminal(s) {
   if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
-  const solved = Object.keys(P.missions).length;
-  const cur = A.mission || nextMission();
-  A.mission = cur;
+  const solved = TERM_MISSIONS.filter(mi => P.missions[mi.id]).length;
+  const cur = A.lab ? null : (A.mission || nextMission());
+  if (!A.lab) A.mission = cur;
   s.innerHTML = prompt('bash --login') + `
-    <h1>Terminal — a Linux box you cannot break</h1>
-    <p class="lead phone-hide">Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
+    <h1>Terminal ${A.lab ? '— ' + esc(A.lab.data.title) : '— a Linux box you cannot break'}</h1>
+    <p class="lead phone-hide">${A.lab ? esc(A.lab.data.description)
+      : `Real filesystem, real flags, real error messages. Missions are checked against what actually happened,
       so any correct route counts. Type <span class="cmdtag">help</span>, or just explore.<br>
-      <span class="tag ok">${MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span></p>
+      <span class="tag ok">${TERM_MISSIONS.length} missions · ${READY_MODULES.map(mo => 'Module ' + mo.num).join(', ')}</span>`}</p>
     <div class="termgrid">
       <div>
         <div id="term"></div>
@@ -1856,29 +1940,31 @@ function renderTerminal(s) {
           <button class="btn ghost sm" data-clear>Clear screen</button>
           <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
           <button class="btn ghost sm" data-tree>${A.showTree ? 'Missions' : 'File tree'}</button>
-          ${A.scenario ? '<button class="btn ghost sm" data-sexit2>Exit scenario</button>'
+          ${A.lab ? '<button class="btn ghost sm" data-lexit2>Exit lab</button>'
+            : A.scenario ? '<button class="btn ghost sm" data-sexit2>Exit scenario</button>'
             : scenariosFor(1).length ? '<button class="btn ghost sm" data-scenarios>Scenarios</button>' : ''}
         </div>
       </div>
       <div>
-        ${A.scenario ? renderScenarioPanel() :
+        ${A.lab ? renderLabPanel() :
+          A.scenario ? renderScenarioPanel() :
           A.showScenarios ? renderScenarioPicker() :
           A.showTree ? `<div class="treepanel" id="treepanel">
           <h3>File System</h3>
           <div class="treeview">${buildTree(A.sh.root, '', A.sh.cwd, 0)}</div>
           <div class="treehint">Click to expand/collapse. Double-click to cd.</div>
         </div>` : `<div class="mission ${cur?'':'done'}" id="missionbox">
-          <h3>${cur ? 'Mission ' + (MISSIONS.indexOf(cur)+1) + ' / ' + MISSIONS.length : 'All missions solved'}</h3>
+          <h3>${cur ? 'Mission ' + (TERM_MISSIONS.indexOf(cur)+1) + ' / ' + TERM_MISSIONS.length : 'All missions solved'}</h3>
           ${cur ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">${esc(cur.tour)}</div>
                    <p class="goal">${esc(cur.goal)}</p>
                    <div class="muted" style="font-size:12px" id="hintbox"></div>`
                 : `<p class="goal">You have cleared every mission. Free-play mode: try anything you like.</p>`}
-          <div class="bar" style="margin-top:10px"><i style="width:${solved/MISSIONS.length*100}%"></i></div>
-          <div class="muted" style="font-size:11.5px;margin-top:6px">${solved}/${MISSIONS.length} solved</div>
-          <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${MISSIONS.length} missions</button>
-          <div class="misslist">${MISSIONS.map((mi,i) => {
+          <div class="bar" style="margin-top:10px"><i style="width:${solved/TERM_MISSIONS.length*100}%"></i></div>
+          <div class="muted" style="font-size:11.5px;margin-top:6px">${solved}/${TERM_MISSIONS.length} solved</div>
+          <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${TERM_MISSIONS.length} missions</button>
+          <div class="misslist">${TERM_MISSIONS.map((mi,i) => {
             const s = P.missions[mi.id]; const parTag = s && typeof s === 'object' ? ` <span class="partag${s.cmds<=s.par?' atpar':''}">${s.cmds}/${s.par}</span>` : '';
-            const hdr = (i === 0 || mi.tour !== MISSIONS[i-1].tour) ? `<div class="misstour">${esc(mi.tour)}</div>` : '';
+            const hdr = (i === 0 || mi.tour !== TERM_MISSIONS[i-1].tour) ? `<div class="misstour">${esc(mi.tour)}</div>` : '';
             return hdr + `<div class="${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
             ${s?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}${parTag}</div>`;}).join('')}</div>
         </div>`}
@@ -1933,6 +2019,15 @@ function renderTerminal(s) {
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   s.querySelectorAll('[data-sexit],[data-sexit2]').forEach(b => b.onclick = () => exitScenario());
+  s.querySelectorAll('[data-lexit],[data-lexit2]').forEach(b => b.onclick = () => exitLab());
+  const lhintBtn = s.querySelector('[data-lhint]');
+  if (lhintBtn) lhintBtn.onclick = () => {
+    if (!A.lab || A.lab.stepIdx >= A.lab.data.steps.length) return;
+    const step = A.lab.data.steps[A.lab.stepIdx];
+    const box = el('labhintbox');
+    if (box) box.innerHTML = `<div class="muted" style="font-size:12px;margin-top:6px">\u{1F4A1} ${esc(step.hint)}</div>`;
+    const i2 = el('tinput'); if (i2) i2.focus();
+  };
   bindTreeClicks();
   s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
   /* on a phone the 55-row list is collapsed by default so the terminal is not
@@ -1941,12 +2036,18 @@ function renderTerminal(s) {
   if (lt) lt.onclick = () => {
     const box = el('missionbox');
     box.classList.toggle('showlist');
-    lt.textContent = box.classList.contains('showlist') ? 'Hide the mission list' : `Browse all ${MISSIONS.length} missions`;
+    lt.textContent = box.classList.contains('showlist') ? 'Hide the mission list' : `Browse all ${TERM_MISSIONS.length} missions`;
   };
 }
+const LAB_IDS = new Set(LABS.map(l => l.id));
+const TERM_MISSIONS = MISSIONS.filter(mi => {
+  const tourKey = mi.tour.toLowerCase().replace(/\s+/g, '');
+  return !LAB_IDS.has(tourKey);
+});
 function nextMission(afterId) {
-  const start = afterId ? MISSIONS.findIndex(m2 => m2.id === afterId) + 1 : 0;
-  return MISSIONS.slice(start).find(m2 => !P.missions[m2.id]) || MISSIONS.find(m2 => !P.missions[m2.id]) || null;
+  const pool = TERM_MISSIONS;
+  const start = afterId ? pool.findIndex(m2 => m2.id === afterId) + 1 : 0;
+  return pool.slice(start).find(m2 => !P.missions[m2.id]) || pool.find(m2 => !P.missions[m2.id]) || null;
 }
 function pushTerm(o) { A.buffer.push(o); }
 function shortCwd() { return A.sh.cwd.replace('/home/student', '~'); }
@@ -2018,6 +2119,40 @@ function runLine(line) {
       awardXP(40); save(); checkBadges();
       pushTerm({ t:'note', s:'✓ Scenario complete! (+40 XP)' });
       toast('Scenario solved — well done!');
+      paintTerm();
+      render();
+      setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+      return;
+    }
+  }
+
+  // lab step check
+  if (A.lab && A.lab.stepIdx < A.lab.data.steps.length) {
+    const lb = A.lab;
+    const step = lb.data.steps[lb.stepIdx];
+    let passed = false;
+    try { passed = !!step.check(A.sh, line); } catch {}
+    if (passed) {
+      lb.stepIdx++;
+      if (!P.labs[lb.data.id]) P.labs[lb.data.id] = { done: 0, complete: false };
+      P.labs[lb.data.id].done = lb.stepIdx;
+      const total = lb.data.steps.length;
+      if (lb.stepIdx >= total) {
+        P.labs[lb.data.id].complete = true;
+        for (const tid of lb.data.teach) {
+          const it = ITEM_BY_ID[tid];
+          if (it) scoreAnswer(it.id, true);
+        }
+        awardXP(lb.data.xp); save(); checkBadges();
+        pushTerm({ t:'note', s:`✓ ${lb.data.title} complete! (+${lb.data.xp} XP)` });
+        toast('Lab complete — well done!');
+      } else {
+        const next = lb.data.steps[lb.stepIdx];
+        const secMsg = next.section && next.section !== step.section ? `  [${next.section}]` : '';
+        pushTerm({ t:'note', s:`✓ Step ${lb.stepIdx}/${total}${secMsg}` });
+        save();
+      }
+      lb.hintShown = false;
       paintTerm();
       render();
       setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);

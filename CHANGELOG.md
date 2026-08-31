@@ -12,6 +12,15 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.25] — 2026-08-31
+
+### Labs — standalone lab simulations
+
+- Labs are now fully independent simulations, separate from terminal missions and scenarios.
+- Lab 01 runs in its own shell with a step-by-step sidebar showing section headers, progress bar, hint button, and live checkmarks.
+- Lab missions (m56-m73) no longer appear in the terminal mission list — they belong to the lab system.
+- Scenario 1 replaced: "The missing log" (deploy script typo) replaces the old broken-script scenario that overlapped with Lab 01.
+
 ## [0.24] — 2026-08-31
 
 ### Module 2 — Version Control with Git
