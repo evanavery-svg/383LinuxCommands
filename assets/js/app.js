@@ -1766,7 +1766,7 @@ function renderScenarioPanel() {
     <div id="scenariohints"></div>
     <div class="row" style="margin-top:12px">
       ${!allPassed ? '<button class="btn ghost sm" data-shint>Hint</button>' : ''}
-      <button class="btn ghost sm" data-sexit>${allPassed ? 'Continue' : 'Give up'}</button>
+      <button class="btn ghost sm" data-sexit>${allPassed ? 'Continue' : 'Exit scenario'}</button>
     </div>
   </div>`;
 }
@@ -1813,7 +1813,8 @@ function renderTerminal(s) {
           <button class="btn ghost sm" data-clear>Clear screen</button>
           <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
           <button class="btn ghost sm" data-tree>${A.showTree ? 'Missions' : 'File tree'}</button>
-          ${!A.scenario && scenariosFor(1).length ? '<button class="btn ghost sm" data-scenarios>Scenarios</button>' : ''}
+          ${A.scenario ? '<button class="btn ghost sm" data-sexit2>Exit scenario</button>'
+            : scenariosFor(1).length ? '<button class="btn ghost sm" data-scenarios>Scenarios</button>' : ''}
         </div>
       </div>
       <div>
@@ -1887,8 +1888,7 @@ function renderTerminal(s) {
     }
     const i2 = el('tinput'); if (i2) i2.focus();
   };
-  const sexitBtn = s.querySelector('[data-sexit]');
-  if (sexitBtn) sexitBtn.onclick = () => exitScenario();
+  s.querySelectorAll('[data-sexit],[data-sexit2]').forEach(b => b.onclick = () => exitScenario());
   s.querySelectorAll('[data-tdir]').forEach(d => d.onclick = () => {
     const path = d.dataset.tdir;
     runLine('cd ' + path);
