@@ -716,7 +716,18 @@ Shell.prototype.cmds = {
   htop()  { return [{ t:'app', app:'top' }]; },
   tload() { return [this.out('  1.20, 0.94, 0.71'), this.out('  .:iIHHIi:.  .:iIHHHIi:.  .:iI'), this.note('Ctrl-c to leave tload.')]; },
   xload() { return [this.note('xload needs a graphical desktop. Try running it in the background: xload &   then: jobs')]; },
-  vim(args)  { return [{ t:'app', app:'vim', file: this.parse(args).ops[0] || '[No Name]' }]; },
+  vim(args)  {
+    const name = this.parse(args).ops[0] || '';
+    const path = name ? this.norm(this.expand(name)) : '';
+    let content = '';
+    let isNew = true;
+    if (path) {
+      const node = this.node(path);
+      if (node && node.type === 'dir') return [this.err('vim: ' + name + ' is a directory')];
+      if (node) { content = node.content || ''; isNew = false; }
+    }
+    return [{ t:'app', app:'vim', file: name || '[No Name]', path, content, isNew }];
+  },
   vi(args)   { return Shell.prototype.cmds.vim.call(this, args); },
   vimtutor() { return [this.note('vimtutor opens a 30-minute guided Vim lesson. In here, try the Vim lessons in Learn mode.')]; },
   man(args)  { const ops = this.parse(args).ops;

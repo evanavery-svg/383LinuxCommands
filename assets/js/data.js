@@ -26,12 +26,15 @@ const COPYRIGHT_HOLDER = 'Avery LLC';
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
-  { version:'0.26', date:'2026-08-31', title:'Labs tab',
+  { version:'0.26', date:'2026-08-31', title:'Labs tab, interactive Vim, better hints',
     notes:[
       'Labs now have their own top-level tab between Terminal and Reference.',
       'The Labs tab shows a lab picker when no lab is active, with progress bars and completion status for each lab.',
       'Starting a lab opens a dedicated terminal with the lab step checklist in the sidebar.',
-      'Lab-specific code removed from the Terminal tab — Terminal is now purely for missions and scenarios.'
+      'Lab-specific code removed from the Terminal tab — Terminal is now purely for missions and scenarios.',
+      'Interactive Vim editor: open files with vim/vi, edit in normal/insert/command modes, save back to the filesystem.',
+      'Vim supports hjkl navigation, i/a/o/O/A/I insert, dd/x/J/r editing, :w/:q/:wq/:q! commands, line numbers, and cursor display.',
+      'Lab step hints now appear inline beneath the active step when the Hint button is clicked, with the exact command highlighted.'
     ] },
   { version:'0.25', date:'2026-08-31', title:'Labs — standalone lab simulations',
     notes:[

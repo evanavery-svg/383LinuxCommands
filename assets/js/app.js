@@ -460,6 +460,7 @@ const TYPING_ATTRS = 'autocomplete="off" autocapitalize="off" autocorrect="off" 
 
 /* Touch keyboards bury these behind a symbol layer or two. */
 const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches;
+let vimIdCounter = 0;
 const TERM_KEYS = [
   { ins:'-' }, { ins:'/' }, { ins:'~' }, { ins:'.' }, { ins:'*' }, { ins:'$' },
   { ins:'|' }, { ins:'>' }, { ins:'&' }, { ins:'%' }, { ins:'+' }, { ins:':' },
@@ -1856,6 +1857,11 @@ function renderLabPanel() {
       <span class="check-icon">${done ? '✓' : active ? '▸' : '○'}</span>
       <span>${esc(step.desc)}</span>
     </div>`;
+    if (active && step.hint) {
+      stepsHtml += `<div class="lab-hint" id="labhintinline" hidden>
+        <span class="hint-icon">💡</span> <code>${esc(step.hint)}</code>
+      </div>`;
+    }
   }
   return `<div class="lab-panel" id="labpanel">
     <h3>${esc(d.title)}</h3>
@@ -1864,7 +1870,6 @@ function renderLabPanel() {
     <div class="muted" style="font-size:11.5px;margin-bottom:10px">Step ${Math.min(cur + 1, total)} of ${total}</div>
     <div class="check-list">${stepsHtml}</div>
     ${allDone ? '<div class="note" style="margin-top:10px;color:var(--good);font-weight:700">Lab complete!</div>' : ''}
-    <div id="labhintbox"></div>
     <div class="row" style="margin-top:12px">
       ${!allDone ? '<button class="btn ghost sm" data-lhint>Hint</button>' : ''}
       <button class="btn ghost sm" data-lexit>${allDone ? 'Continue' : 'Exit lab'}</button>
@@ -2002,9 +2007,8 @@ function renderLabTerminal(s) {
   const lhintBtn = s.querySelector('[data-lhint]');
   if (lhintBtn) lhintBtn.onclick = () => {
     if (!A.lab || A.lab.stepIdx >= A.lab.data.steps.length) return;
-    const step = A.lab.data.steps[A.lab.stepIdx];
-    const box = el('labhintbox');
-    if (box) box.innerHTML = `<div class="muted" style="font-size:12px;margin-top:6px">\u{1F4A1} ${esc(step.hint)}</div>`;
+    const hintEl = el('labhintinline');
+    if (hintEl) { hintEl.hidden = !hintEl.hidden; A.lab.hintShown = !hintEl.hidden; }
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   bindTreeClicks();
@@ -2333,6 +2337,223 @@ function paintTerm() {
     }
     scroll.focus();
   });
+  term.querySelectorAll('.vimpager').forEach(pager => initVim(pager));
+}
+function initVim(pager) {
+  const filepath = pager.dataset.vimpath;
+  const filename = pager.dataset.vimfile;
+  const isNew = pager.dataset.vimnew === '1';
+  const linesEl = pager.querySelector('.vimlines');
+  const statusEl = pager.querySelector('.vimstatus');
+  const cmdEl = pager.querySelector('.vimcmd');
+
+  const fileNode = filepath ? A.sh.node(filepath) : null;
+  let lines = (fileNode && !isNew) ? (fileNode.content || '').split('\n') : [''];
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  let row = 0, col = 0, mode = 'NORMAL', modified = false;
+  let cmdBuf = '', statusMsg = '';
+  let pendingKey = '';
+  const VISIBLE = 20;
+
+  function clamp() {
+    row = Math.max(0, Math.min(row, lines.length - 1));
+    if (mode === 'NORMAL') col = Math.max(0, Math.min(col, (lines[row] || '').length - 1));
+    else col = Math.max(0, Math.min(col, (lines[row] || '').length));
+    if (col < 0) col = 0;
+  }
+  function paint() {
+    let scrollTop = 0;
+    if (row >= VISIBLE) scrollTop = row - VISIBLE + 1;
+    let html = '';
+    for (let i = scrollTop; i < scrollTop + VISIBLE + 5 && i < lines.length; i++) {
+      const ln = lines[i] || '';
+      const num = String(i + 1).padStart(3, ' ');
+      let lineHtml = '';
+      if (i === row) {
+        const before = esc(ln.slice(0, col));
+        const curCh = col < ln.length ? esc(ln[col]) : ' ';
+        const after = col < ln.length ? esc(ln.slice(col + 1)) : '';
+        lineHtml = `<span class="vln">${num} </span>${before}<span class="vcur">${curCh}</span>${after}`;
+      } else {
+        lineHtml = `<span class="vln">${num} </span>${esc(ln)}`;
+      }
+      html += `<div class="vl">${lineHtml}</div>`;
+    }
+    for (let i = lines.length; i < scrollTop + VISIBLE; i++) {
+      html += `<div class="vl"><span class="vtilde">~</span></div>`;
+    }
+    linesEl.innerHTML = html;
+    if (mode === 'COMMAND') {
+      cmdEl.classList.remove('hidden');
+      cmdEl.textContent = ':' + cmdBuf;
+      statusEl.textContent = '';
+    } else {
+      cmdEl.classList.add('hidden');
+      if (statusMsg) { statusEl.textContent = statusMsg; statusMsg = ''; }
+      else {
+        const modeStr = mode === 'INSERT' ? '-- INSERT --' : '';
+        const pos = `${row + 1},${col + 1}`;
+        const finfo = `"${filename}"${modified ? ' [+]' : ''} ${lines.length}L`;
+        statusEl.innerHTML = `<span>${esc(modeStr)}</span><span>${esc(finfo)}  ${esc(pos)}</span>`;
+      }
+    }
+  }
+  function saveFile() {
+    if (!filepath) { statusMsg = 'E32: No file name'; return false; }
+    let content = lines.join('\n');
+    if (content && !content.endsWith('\n')) content += '\n';
+    const parts = filepath.split('/').filter(Boolean);
+    const fname = parts.pop();
+    let cur = A.sh.root;
+    for (const p of parts) {
+      if (!cur.children[p]) cur.children[p] = { type:'dir', mode:0o755, owner:'student', group:'student', mtime:0, children:{} };
+      cur = cur.children[p];
+    }
+    if (!cur.children[fname]) {
+      cur.children[fname] = { type:'file', mode:0o644, owner:'student', group:'student', mtime:0, content };
+    } else {
+      cur.children[fname].content = content;
+      cur.children[fname].mtime = Date.now();
+    }
+    modified = false;
+    statusMsg = `"${filename}" ${lines.length}L, ${content.length}C written`;
+    return true;
+  }
+  function saveToPath(newPath) {
+    let content = lines.join('\n');
+    if (content && !content.endsWith('\n')) content += '\n';
+    const resolved = A.sh.norm(A.sh.expand(newPath));
+    const parts = resolved.split('/').filter(Boolean);
+    const fname = parts.pop();
+    let cur = A.sh.root;
+    for (const p of parts) {
+      if (!cur.children[p]) { statusMsg = 'E212: Cannot open for writing'; return false; }
+      cur = cur.children[p];
+    }
+    if (!cur.children[fname]) {
+      cur.children[fname] = { type:'file', mode:0o644, owner:'student', group:'student', mtime:0, content };
+    } else {
+      cur.children[fname].content = content;
+    }
+    modified = false;
+    statusMsg = `"${newPath}" ${lines.length}L, ${content.length}C written`;
+    return true;
+  }
+  function quit() {
+    const idx = A.buffer.findIndex(o => o.t === 'app' && o.app === 'vim' && o.path === filepath);
+    if (idx >= 0) A.buffer.splice(idx, 1);
+    paintTerm();
+    const inp = el('tinput'); if (inp) inp.focus();
+  }
+  function execCmd(cmd) {
+    cmd = cmd.trim();
+    if (cmd === 'q') {
+      if (modified) { statusMsg = 'E37: No write since last change (add ! to override)'; paint(); return; }
+      quit(); return;
+    }
+    if (cmd === 'q!') { quit(); return; }
+    if (cmd === 'wq' || cmd === 'x') {
+      if (saveFile()) quit(); else paint();
+      return;
+    }
+    if (cmd === 'w') { saveFile(); paint(); return; }
+    if (cmd.startsWith('w ')) { saveToPath(cmd.slice(2).trim()); paint(); return; }
+    if (cmd === 'wq!' || cmd === 'x!') { saveFile(); quit(); return; }
+    const lineNum = parseInt(cmd);
+    if (!isNaN(lineNum) && lineNum > 0) {
+      row = Math.min(lineNum - 1, lines.length - 1); col = 0; clamp(); paint(); return;
+    }
+    if (cmd === '$') { row = lines.length - 1; col = 0; clamp(); paint(); return; }
+    statusMsg = 'E492: Not an editor command: ' + cmd;
+    paint();
+  }
+
+  linesEl.onkeydown = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (mode === 'COMMAND') {
+      if (e.key === 'Enter') { mode = 'NORMAL'; const c = cmdBuf; cmdBuf = ''; execCmd(c); return; }
+      else if (e.key === 'Escape') { mode = 'NORMAL'; cmdBuf = ''; paint(); }
+      else if (e.key === 'Backspace') { cmdBuf = cmdBuf.slice(0, -1); if (!cmdBuf.length) { mode = 'NORMAL'; } paint(); }
+      else if (e.key.length === 1) { cmdBuf += e.key; paint(); }
+      return;
+    }
+    if (mode === 'INSERT') {
+      if (e.key === 'Escape') { mode = 'NORMAL'; col = Math.max(0, col - 1); clamp(); paint(); return; }
+      if (e.key === 'Enter') {
+        const before = lines[row].slice(0, col), after = lines[row].slice(col);
+        lines[row] = before; lines.splice(row + 1, 0, after);
+        row++; col = 0; modified = true; clamp(); paint(); return;
+      }
+      if (e.key === 'Backspace') {
+        if (col > 0) { lines[row] = lines[row].slice(0, col - 1) + lines[row].slice(col); col--; modified = true; }
+        else if (row > 0) { col = lines[row - 1].length; lines[row - 1] += lines[row]; lines.splice(row, 1); row--; modified = true; }
+        clamp(); paint(); return;
+      }
+      if (e.key === 'Tab') { lines[row] = lines[row].slice(0, col) + '  ' + lines[row].slice(col); col += 2; modified = true; paint(); return; }
+      if (e.key === 'ArrowLeft') { if (col > 0) col--; paint(); return; }
+      if (e.key === 'ArrowRight') { if (col < lines[row].length) col++; paint(); return; }
+      if (e.key === 'ArrowUp') { if (row > 0) row--; clamp(); paint(); return; }
+      if (e.key === 'ArrowDown') { if (row < lines.length - 1) row++; clamp(); paint(); return; }
+      if (e.key.length === 1) {
+        lines[row] = lines[row].slice(0, col) + e.key + lines[row].slice(col);
+        col++; modified = true; paint(); return;
+      }
+      return;
+    }
+    // NORMAL mode
+    const key = e.key;
+    if (pendingKey) {
+      const combo = pendingKey + key;
+      pendingKey = '';
+      if (combo === 'dd') { if (lines.length > 1) { lines.splice(row, 1); clamp(); } else { lines[row] = ''; col = 0; } modified = true; paint(); return; }
+      if (combo === 'gg') { row = 0; col = 0; paint(); return; }
+      if (combo === 'ZZ') { if (saveFile()) quit(); return; }
+      if (combo === 'ZQ') { quit(); return; }
+      paint(); return;
+    }
+    if (key === 'd' || key === 'g' || key === 'Z') { pendingKey = key; return; }
+    if (key === ':') { mode = 'COMMAND'; cmdBuf = ''; paint(); return; }
+    if (key === 'i') { mode = 'INSERT'; paint(); return; }
+    if (key === 'a') { col = Math.min(col + 1, lines[row].length); mode = 'INSERT'; paint(); return; }
+    if (key === 'I') { col = 0; mode = 'INSERT'; paint(); return; }
+    if (key === 'A') { col = lines[row].length; mode = 'INSERT'; paint(); return; }
+    if (key === 'o') { lines.splice(row + 1, 0, ''); row++; col = 0; mode = 'INSERT'; modified = true; paint(); return; }
+    if (key === 'O') { lines.splice(row, 0, ''); col = 0; mode = 'INSERT'; modified = true; paint(); return; }
+    if (key === 'x') { if (lines[row].length > 0) { lines[row] = lines[row].slice(0, col) + lines[row].slice(col + 1); modified = true; clamp(); } paint(); return; }
+    if (key === 'r' && !e.ctrlKey) { pendingKey = 'r'; return; }
+    if (pendingKey === '' && false) {} // placeholder
+    if (key === 'h' || key === 'ArrowLeft') { col = Math.max(0, col - 1); paint(); return; }
+    if (key === 'l' || key === 'ArrowRight') { col = Math.min((lines[row] || '').length - 1, col + 1); if (col < 0) col = 0; paint(); return; }
+    if (key === 'j' || key === 'ArrowDown') { if (row < lines.length - 1) row++; clamp(); paint(); return; }
+    if (key === 'k' || key === 'ArrowUp') { if (row > 0) row--; clamp(); paint(); return; }
+    if (key === 'w') { const ln = lines[row]; const rest = ln.slice(col + 1); const m = rest.match(/\s\S/); if (m) col += m.index + 1 + 1; else if (row < lines.length - 1) { row++; col = 0; } clamp(); paint(); return; }
+    if (key === 'b') { if (col > 0) { const before = lines[row].slice(0, col); const m = before.match(/\S\s*$/); col = m ? before.lastIndexOf(m[0][0]) : 0; } else if (row > 0) { row--; col = Math.max(0, lines[row].length - 1); } clamp(); paint(); return; }
+    if (key === '0' || key === 'Home') { col = 0; paint(); return; }
+    if (key === '$' || key === 'End') { col = Math.max(0, (lines[row] || '').length - 1); paint(); return; }
+    if (key === 'G') { row = lines.length - 1; col = 0; paint(); return; }
+    if (key === 'J') { if (row < lines.length - 1) { lines[row] += ' ' + lines[row + 1]; lines.splice(row + 1, 1); modified = true; clamp(); paint(); } return; }
+    if (key === 'u') { statusMsg = 'Already at oldest change'; paint(); return; }
+    if (key === 'Escape') { pendingKey = ''; paint(); return; }
+  };
+  // handle 'r' replacement
+  const origKeydown = linesEl.onkeydown;
+  linesEl.onkeydown = e => {
+    if (pendingKey === 'r' && mode === 'NORMAL') {
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === 'Escape') { pendingKey = ''; paint(); return; }
+      if (e.key.length === 1) {
+        lines[row] = lines[row].slice(0, col) + e.key + lines[row].slice(col + 1);
+        modified = true; pendingKey = ''; clamp(); paint(); return;
+      }
+      return;
+    }
+    origKeydown(e);
+  };
+
+  statusMsg = isNew ? `"${filename}" [New File]` : `"${filename}" ${lines.length}L, ${(fileNode?.content||'').length}C`;
+  paint();
+  linesEl.focus();
 }
 function appWindow(o) {
   if (o.app === 'top') return `<div class="appwin"><h4>top — 09:31:07 up 2:14, 1 user, load average: 0.42, 0.31, 0.28</h4>
@@ -2345,12 +2566,11 @@ function appWindow(o) {
     <div class="l"> 2841 student   20   0    5.1M  0.0  0.1 bash</div>
     <div class="keys">h = help · q = quit · (this snapshot does not refresh)</div></div>`;
   if (o.app === 'vim') {
-    const it = ALL_ITEMS.filter(i => i.cat === 'vim');
-    return `<div class="appwin"><h4>VIM — editing ${esc(o.file)} · NORMAL mode</h4>
-      <div class="l">You are now in Vim. This simulator does not run the editor, but here is the way out:</div>
-      <div class="l">&nbsp;</div>
-      <div class="l"><b>:q</b>  quit (refuses if unsaved) &nbsp;·&nbsp; <b>:q!</b> quit and discard &nbsp;·&nbsp; <b>:wq</b> save and quit &nbsp;·&nbsp; <b>ZZ</b> save and quit</div>
-      <div class="keys">Vim has ${it.length} bites in the Learn tab — that is where to practise the keys.</div></div>`;
+    return `<div class="appwin vimpager" data-vimid="${vimIdCounter++}" data-vimpath="${esc(o.path||'')}" data-vimfile="${esc(o.file)}" data-vimnew="${o.isNew?1:0}">
+      <div class="vimlines" tabindex="0"></div>
+      <div class="vimstatus"></div>
+      <div class="vimcmd hidden"></div>
+    </div>`;
   }
   if (o.app === 'man') {
     const t = o.topic;

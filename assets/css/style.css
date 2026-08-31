@@ -353,6 +353,8 @@ code,.mono{font-family:var(--font)}
 .lab-panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;max-height:56vh;overflow:auto}
 .lab-panel h3{margin:0 0 4px;font-size:13px;color:var(--accent2);letter-spacing:.6px;text-transform:uppercase}
 .lab-section{font-size:11.5px;font-weight:700;color:var(--accent2);margin:10px 0 4px;letter-spacing:.4px;text-transform:uppercase}
+.lab-hint{padding:4px 8px 4px 28px;font-size:12px;color:var(--accent);border-left:2px solid var(--accent);margin:2px 0 4px}
+.lab-hint code{background:var(--bg2);padding:2px 6px;border-radius:3px;font-size:12px}
 .sc-card{padding:8px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
 .sc-card:hover{border-color:var(--accent)}
 .sc-card.done{opacity:.65}
@@ -371,6 +373,15 @@ code,.mono{font-family:var(--font)}
 .manlabel{color:var(--accent2);font-weight:700}
 .maninput{background:transparent;border:none;color:var(--fg);font:inherit;font-size:12px;outline:none;width:120px}
 .manhl{background:var(--warn);color:var(--bg);border-radius:2px;padding:0 1px}
+.vimpager{padding:0;overflow:hidden;display:flex;flex-direction:column;font-family:var(--mono,'Menlo','Consolas',monospace)}
+.vimlines{min-height:200px;max-height:360px;overflow-y:auto;padding:4px 8px;outline:none;background:var(--bg2);cursor:text}
+.vl{font-size:13px;line-height:20px;white-space:pre;min-height:20px}
+.vln{color:var(--dim);user-select:none}
+.vtilde{color:var(--accent2);user-select:none}
+.vcur{background:var(--fg);color:var(--bg)}
+.vimstatus{display:flex;justify-content:space-between;padding:2px 8px;font-size:12px;color:var(--dim);background:var(--bg);border-top:1px solid var(--line)}
+.vimcmd{padding:2px 8px;font-size:12px;color:var(--fg);background:var(--bg);border-top:1px solid var(--line)}
+.vimcmd.hidden{display:none}
 .explain-box{border-color:var(--accent)}
 .explain-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;padding:4px 0;border-bottom:1px solid var(--line)}
 .explain-row:last-child{border:0}
