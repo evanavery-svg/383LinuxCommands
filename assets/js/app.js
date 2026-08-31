@@ -643,14 +643,23 @@ function renderModuleHome(s, num) {
     <div class="grid g3">
       ${mo.cats.map(c => {
         const csets = sets.filter(x => x.cat === c.id);
-        const pct = scoreOf(csets);
-        const cdone = csets.filter(x => x.done).length;
-        const call  = csets.length;
-        return `<button class="card" data-cat="${c.id}">
+        const catMissions = MISSIONS.filter(mi => mi.tour === c.name);
+        const hasSets = csets.length > 0;
+        if (hasSets) {
+          const pct = scoreOf(csets);
+          const cdone = csets.filter(x => x.done).length;
+          return `<button class="card" data-cat="${c.id}">
+            <h3>${c.icon} ${esc(c.name)}</h3>
+            <p>${esc(c.blurb)}</p>
+            <div class="meta"><span>${cdone}/${csets.length} sets</span><span>${pct}%</span></div>
+            <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
+        }
+        const msolved = catMissions.filter(mi => P.missions[mi.id]).length;
+        return `<button class="card" data-labcat="${c.id}">
           <h3>${c.icon} ${esc(c.name)}</h3>
           <p>${esc(c.blurb)}</p>
-          <div class="meta"><span>${cdone}/${call} sets</span><span>${pct}%</span></div>
-          <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></button>`;
+          <div class="meta"><span>${msolved}/${catMissions.length} missions</span><span>🖥️</span></div>
+          <div class="bar" style="margin-top:6px"><i style="width:${catMissions.length ? msolved/catMissions.length*100 : 0}%"></i></div></button>`;
       }).join('')}
     </div>`;
 
@@ -666,6 +675,15 @@ function renderModuleHome(s, num) {
     startDrill(shuffle(BUILD_TASKS.filter(t => t.mod === num).map(t => 'build:' + t.id)).slice(0, 10),
                { title:'Build the command' });
   s.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => go('learn', b.dataset.cat));
+  s.querySelectorAll('[data-labcat]').forEach(b => b.onclick = () => {
+    const cat = CURRICULUM.find(c => c.id === b.dataset.labcat);
+    if (cat) {
+      const first = MISSIONS.find(mi => mi.tour === cat.name && !P.missions[mi.id])
+                 || MISSIONS.find(mi => mi.tour === cat.name);
+      if (first) A.mission = first;
+    }
+    go('terminal');
+  });
 }
 
 /* ---------------- chunking ---------------- */
