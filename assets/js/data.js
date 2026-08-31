@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.18';
+const VERSION = '0.19';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.19', date:'2026-08-31', title:'Reverse history search (Ctrl+R)',
+    notes:[
+      'New: Press Ctrl+R in the terminal to search your command history, just like real bash.',
+      'Type any fragment and the most recent matching command appears. Press Ctrl+R again to cycle through older matches.',
+      'Press Enter to execute the match, Escape or Ctrl+G to cancel, or an arrow key to accept the match and edit it.',
+      'Backspace removes characters from the search query. The prompt shows (reverse-i-search) while active.'
+    ] },
   { version:'0.18', date:'2026-08-31', title:'Scenario challenges',
     notes:[
       'New: 5 scenario challenges — open-ended troubleshooting tasks with multiple valid solutions. Fix broken scripts, lock down permissions, kill rogue processes, organize files, and repair configs.',

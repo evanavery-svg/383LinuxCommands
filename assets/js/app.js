@@ -437,7 +437,8 @@ const A = {
   examCfg: { count: 20, mins: 20 },
   showTree: false,
   showScenarios: false,
-  scenario: null
+  scenario: null,
+  isearch: null
 };
 
 const TABS = [
@@ -1672,6 +1673,63 @@ function buildTree(node, path, cwd, depth) {
   }
   return html;
 }
+function isearchStart(input) {
+  A.isearch = { query: '', matchIdx: -1, savedInput: input.value, match: '' };
+  isearchPaint(input);
+}
+function isearchPaint(input) {
+  const s = A.isearch;
+  const ps = document.querySelector('.terminput .ps');
+  if (ps) ps.innerHTML = `<span class="isearch">(reverse-i-search)'${esc(s.query)}':</span>`;
+  input.value = s.match;
+}
+function isearchFind(input, dir) {
+  const s = A.isearch;
+  const h = A.sh.history;
+  if (!h.length || !s.query) { s.match = ''; s.matchIdx = -1; isearchPaint(input); return; }
+  let start;
+  if (dir === 'next') {
+    if (s.matchIdx <= 0) { isearchPaint(input); return; }
+    start = s.matchIdx - 1;
+  } else {
+    start = s.matchIdx < 0 ? h.length - 1 : s.matchIdx;
+  }
+  for (let i = start; i >= 0; i--) {
+    if (h[i].includes(s.query)) { s.matchIdx = i; s.match = h[i]; isearchPaint(input); return; }
+  }
+  isearchPaint(input);
+}
+function isearchExit(input, accept) {
+  const s = A.isearch;
+  A.isearch = null;
+  const ps = document.querySelector('.terminput .ps');
+  if (ps) ps.innerHTML = `<span class="host">[student@fedora </span><span id="cwdlab">${esc(shortCwd())}</span><span class="host">]</span>$`;
+  input.value = accept ? s.match : s.savedInput;
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+function isearchKey(e, input) {
+  const s = A.isearch;
+  if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); isearchFind(input, 'next'); return true; }
+  if (e.key === 'Escape' || (e.key === 'g' && e.ctrlKey)) { e.preventDefault(); isearchExit(input, false); return true; }
+  if (e.key === 'Enter') { e.preventDefault(); isearchExit(input, true); runLine(input.value); input.value = ''; A.histIdx = -1; return true; }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown'
+      || (e.key === 'a' && e.ctrlKey) || (e.key === 'e' && e.ctrlKey)) {
+    e.preventDefault(); isearchExit(input, true); return true;
+  }
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    if (s.query.length) { s.query = s.query.slice(0, -1); s.matchIdx = -1; isearchFind(input, 'same'); }
+    return true;
+  }
+  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    s.query += e.key;
+    s.matchIdx = -1;
+    isearchFind(input, 'same');
+    return true;
+  }
+  return false;
+}
 function startScenario(id) {
   const sc = SCENARIOS.find(s => s.id === id);
   if (!sc) return;
@@ -1793,6 +1851,8 @@ function renderTerminal(s) {
   const input = el('tinput');
   input.focus();
   input.onkeydown = e => {
+    if (A.isearch) { if (isearchKey(e, input)) return; }
+    if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); isearchStart(input); return; }
     if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; }
     else if (e.key === 'ArrowUp')   { e.preventDefault(); const h = A.sh.history; if (h.length) { A.histIdx = A.histIdx < 0 ? h.length-1 : Math.max(0, A.histIdx-1); input.value = h[A.histIdx]; } }
     else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }

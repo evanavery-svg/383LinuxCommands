@@ -12,6 +12,18 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.19] — 2026-08-31
+
+### Added
+- **Reverse history search (Ctrl+R)** — press Ctrl+R in the terminal to search
+  your command history, just like real bash.
+- Type any fragment and the most recent matching command appears. Press Ctrl+R
+  again to cycle through older matches.
+- Press Enter to execute the match, Escape or Ctrl+G to cancel, or an arrow key
+  to accept the match and edit it.
+
+---
+
 ## [0.18] — 2026-08-31
 
 ### Added
