@@ -12,6 +12,41 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.22] — 2026-08-31
+
+### Added
+- **Interactive man pages** — `man` pages are now interactive pagers with real
+  keyboard navigation. Space/b to page, j/k to scroll, g/G to jump.
+- Press `/` to search within the man page — matches are highlighted. Use `n`/`N`
+  to cycle through matches.
+- Man pages now show full DESCRIPTION, all OPTIONS with notes, and SEE ALSO.
+- A status bar shows current line and scroll percentage, like the real `less` pager.
+
+---
+
+## [0.21] — 2026-08-31
+
+### Added
+- **Mission replay & par score** — every mission now has a par score (fewest
+  commands for the ideal solution).
+- On solving a mission, you see your command count vs. par. Achieve par or
+  fewer for a "(par!)" tag.
+- The mission list shows your score alongside par for every solved mission.
+
+---
+
+## [0.20] — 2026-08-31
+
+### Added
+- **"Explain this command" mode** — type `explain ls -ltrS /var/log` to get a
+  token-by-token breakdown of any command line.
+- Click any command in your terminal history to explain it (history lines are
+  now clickable).
+- Flags like `-ltr` are split into individual flags and each is looked up
+  separately. Pipes, redirects, and background operators are explained too.
+
+---
+
 ## [0.19] — 2026-08-31
 
 ### Added

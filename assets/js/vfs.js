@@ -772,6 +772,48 @@ Shell.prototype.cmds = {
   reset()    { return [{ t:'reset' }]; },
   clear()    { return [{ t:'clear' }]; },
   history()  { return this.history.map((h,i) => this.out(`${String(i+1).padStart(5)}  ${h}`)); },
+  explain(args) {
+    if (!args.length) return [this.err('explain: usage: explain <command line>')];
+    const line = args.join(' ');
+    const toks = line.split(/\s+/).filter(Boolean);
+    const base = toks[0];
+    const baseItem = ALL_ITEMS.find(i => i.cmd === base) || ITEM_BY_ID[base];
+    const out = [];
+    out.push({ t:'explain', parts:[] });
+    const parts = out[0].parts;
+    if (baseItem) parts.push({ token: base, kind:'cmd', what: baseItem.what, note: baseItem.note || '' });
+    else parts.push({ token: base, kind:'cmd', what:'(not in the course reference)', note:'' });
+    for (let k = 1; k < toks.length; k++) {
+      const tok = toks[k];
+      if (tok.startsWith('-') && tok.length > 1 && !tok.startsWith('--') && !/^-\d/.test(tok)) {
+        const flags = tok.slice(1).split('');
+        for (const f of flags) {
+          const combo = base + ' -' + f;
+          const it = ALL_ITEMS.find(i => i.cmd === combo) || ITEM_BY_ID[base + '_' + f];
+          parts.push({ token: '-' + f, kind:'flag', what: it ? it.what : '(unknown flag)', note: it ? (it.note||'') : '' });
+        }
+      } else if (tok.startsWith('--')) {
+        const name = tok.replace(/=.*/, '');
+        const it = ALL_ITEMS.find(i => i.cmd === base + ' ' + name);
+        parts.push({ token: tok, kind:'flag', what: it ? it.what : '(long option)', note: it ? (it.note||'') : '' });
+      } else if (tok === '|') {
+        parts.push({ token: '|', kind:'op', what:'pipe: sends the output of the left command into the input of the right command', note:'' });
+      } else if (tok === '>' || tok === '>>') {
+        parts.push({ token: tok, kind:'op', what: tok === '>' ? 'redirect: write output to a file (overwrites)' : 'append: add output to the end of a file', note:'' });
+      } else if (tok === '<') {
+        parts.push({ token: tok, kind:'op', what:'redirect: read input from a file', note:'' });
+      } else if (tok === '&') {
+        parts.push({ token: '&', kind:'op', what:'run the command in the background', note:'' });
+      } else if (tok === ';') {
+        parts.push({ token: ';', kind:'op', what:'command separator: run the next command after this one finishes', note:'' });
+      } else if (/^\$[\({]?\w/.test(tok)) {
+        parts.push({ token: tok, kind:'var', what:'variable or command substitution', note:'' });
+      } else {
+        parts.push({ token: tok, kind:'path', what:'argument (file, directory, or value)', note:'' });
+      }
+    }
+    return out;
+  },
   set(args)  { if (args[0] === '-o' && args[1] === 'vi')    return [this.note('bash line editing is now vi-style: you begin in insert mode, tap Esc for normal mode.')];
                if (args[0] === '-o' && args[1] === 'emacs') return [this.note('bash line editing is back to emacs-style: Ctrl-a start, Ctrl-e end, Ctrl-k kill to end of line.')];
                return [this.note('set: try  set -o vi  or  set -o emacs')]; },

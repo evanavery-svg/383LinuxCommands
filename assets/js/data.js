@@ -20,12 +20,33 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.19';
+const VERSION = '0.22';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.22', date:'2026-08-31', title:'Interactive man pages',
+    notes:[
+      'New: man pages are now interactive pagers. Space pages down, b pages up, j/k scroll line by line, g/G jump to top/bottom.',
+      'Press / to search within the man page — matching text is highlighted. Use n/N to jump between matches.',
+      'Man pages now show a full DESCRIPTION section, all OPTIONS with notes, and a SEE ALSO section linking related commands.',
+      'A status bar shows the current line number and scroll percentage, just like the real less pager. Press q to exit.'
+    ] },
+  { version:'0.21', date:'2026-08-31', title:'Mission replay & par score',
+    notes:[
+      'New: every mission now has a par score — the fewest commands needed for the ideal solution.',
+      'When you solve a mission, you see how many commands you used vs. par. Solve it in par or fewer and you get a "(par!)" badge.',
+      'The mission list shows your command count alongside par for every solved mission, so you can spot which ones to replay for a better score.',
+      'Existing saves are fully compatible — missions solved before this update keep their checkmark, new solves start tracking commands.'
+    ] },
+  { version:'0.20', date:'2026-08-31', title:'"Explain this command" mode',
+    notes:[
+      'New: type explain followed by any command line to get a token-by-token breakdown. Each part — base command, flags, pipes, redirects, arguments — is identified and explained from the course reference.',
+      'Click any command in your terminal history to explain it. History lines are now clickable with a dotted underline on hover.',
+      'Flags like -ltr are split into individual flags (-l, -t, -r) and each one is looked up separately. Pipes, redirects, and background operators are explained too.',
+      'Works with any command line, even ones outside the course — unknown tokens are labeled so you know what the reference covers.'
+    ] },
   { version:'0.19', date:'2026-08-31', title:'Reverse history search (Ctrl+R)',
     notes:[
       'New: Press Ctrl+R in the terminal to search your command history, just like real bash.',

@@ -430,6 +430,7 @@ const A = {
   sh: null,
   mission: null,
   missTries: 0,
+  missCmds: 0,
   histIdx: -1,
   combo: 0,
   exam: null,
@@ -438,7 +439,8 @@ const A = {
   showTree: false,
   showScenarios: false,
   scenario: null,
-  isearch: null
+  isearch: null,
+  _manId: 0
 };
 
 const TABS = [
@@ -1835,8 +1837,10 @@ function renderTerminal(s) {
           <div class="bar" style="margin-top:10px"><i style="width:${solved/MISSIONS.length*100}%"></i></div>
           <div class="muted" style="font-size:11.5px;margin-top:6px">${solved}/${MISSIONS.length} solved</div>
           <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${MISSIONS.length} missions</button>
-          <div class="misslist">${MISSIONS.map((mi,i) => `<div class="${P.missions[mi.id]?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
-            ${P.missions[mi.id]?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}</div>`).join('')}</div>
+          <div class="misslist">${MISSIONS.map((mi,i) => {
+            const s = P.missions[mi.id]; const parTag = s && typeof s === 'object' ? ` <span class="partag${s.cmds<=s.par?' atpar':''}">${s.cmds}/${s.par}</span>` : '';
+            return `<div class="${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
+            ${s?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}${parTag}</div>`;}).join('')}</div>
         </div>`}
       </div>
     </div>`;
@@ -1869,7 +1873,7 @@ function renderTerminal(s) {
   }));
   s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
   s.querySelector('[data-resetfs]').onclick = () => { A.sh = new Shell(); A.buffer = []; pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus(); };
-  s.querySelector('[data-skip]').onclick = () => { if (A.mission) { A.mission = nextMission(A.mission.id); render(); } };
+  s.querySelector('[data-skip]').onclick = () => { if (A.mission) { A.mission = nextMission(A.mission.id); A.missCmds = 0; render(); } };
   s.querySelector('[data-hint]').onclick = () => { const h = el('hintbox'); if (h && A.mission) h.innerHTML = `💡 ${esc(A.mission.hint)}`; input.focus(); };
   s.querySelector('[data-tree]').onclick = () => { A.showTree = !A.showTree; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
   const scBtn = s.querySelector('[data-scenarios]');
@@ -1925,15 +1929,20 @@ function runLine(line) {
 
   // mission check
   if (A.mission && !P.missions[A.mission.id]) {
+    A.missCmds++;
     let solved = false;
     try { solved = !!A.mission.check(A.sh, line); } catch {}
     if (solved) {
-      P.missions[A.mission.id] = true;
+      const cmds = A.missCmds;
+      const par = A.mission.par || 1;
+      P.missions[A.mission.id] = { cmds, par };
       const it = ITEM_BY_ID[A.mission.teach];
       if (it) scoreAnswer(it.id, true);
       awardXP(25); save(); checkBadges();
-      pushTerm({ t:'note', s:`✓ Mission solved  (+25 XP)${it ? '  —  ' + it.cmd + ': it ' + it.what + '.' : ''}` });
+      const parMsg = cmds <= par ? ' (par!)' : cmds <= par + 1 ? ' (close to par)' : ` (par: ${par})`;
+      pushTerm({ t:'note', s:`✓ Mission solved in ${cmds} command${cmds>1?'s':''}${parMsg}  (+25 XP)${it ? '  —  ' + it.cmd + ': it ' + it.what + '.' : ''}` });
       A.missTries = 0;
+      A.missCmds = 0;
       const nx = nextMission(A.mission.id);
       A.mission = nx;
       paintTerm();
@@ -1990,7 +1999,7 @@ function paintTerm() {
   const term = el('term'); if (!term) return;
   term.innerHTML = A.buffer.map(o => {
     switch (o.t) {
-      case 'in':   return `<div class="l in"><span class="ps">[student@fedora <span class="pth">${esc(o.cwd)}</span>]$</span> <span class="c">${esc(o.s)}</span></div>`;
+      case 'in':   return `<div class="l in"><span class="ps">[student@fedora <span class="pth">${esc(o.cwd)}</span>]$</span> <span class="c${o.s ? ' explainable' : ''}"${o.s ? ` data-explain="${esc(o.s)}"` : ''}>${esc(o.s)}</span></div>`;
       case 'err':  return `<div class="l err">${esc(o.s)}</div>`;
       case 'note': return `<div class="l note">${esc(o.s)}</div>`;
       case 'pager':return `<div class="l"><span class="pager">${esc(o.s)}</span></div>`;
@@ -1998,11 +2007,83 @@ function paintTerm() {
       case 'ls':   return `<div class="l nw">${esc(o.s)}<span class="${o.kind==='dir'?'d':o.kind==='link'?'ln':o.exec?'x':''}">${esc(o.name)}</span></div>`;
       case 'lsgrid': return `<div class="l nw grid2">${o.items.map(i =>
                         `<span class="${i.kind==='dir'?'d':i.kind==='link'?'ln':i.exec?'x':''}">${esc(i.name)}</span>`).join(' ')}</div>`;
+      case 'explain': return `<div class="appwin explain-box"><h4>Command breakdown</h4>${o.parts.map(p =>
+          `<div class="explain-row"><span class="explain-tok ${p.kind}">${esc(p.token)}</span>
+           <span class="explain-kind">${p.kind}</span>
+           <span class="explain-what">${esc('it ' + p.what)}</span>
+           ${p.note ? `<div class="explain-note">${esc(p.note)}</div>` : ''}</div>`).join('')}</div>`;
       case 'app':  return appWindow(o);
       default:     return `<div class="l">${esc(o.s)}</div>`;
     }
   }).join('');
   term.scrollTop = term.scrollHeight;
+  term.querySelectorAll('.explainable').forEach(sp => {
+    sp.style.cursor = 'pointer';
+    sp.title = 'Click to explain this command';
+    sp.onclick = () => {
+      const cmd = sp.dataset.explain;
+      if (cmd) { runLine('explain ' + cmd); const inp = el('tinput'); if (inp) inp.focus(); }
+    };
+  });
+  term.querySelectorAll('.manpager').forEach(pager => {
+    const scroll = pager.querySelector('.manscroll');
+    const status = pager.querySelector('.manstatus');
+    const searchBox = pager.querySelector('.mansearch');
+    const searchInput = pager.querySelector('.maninput');
+    let query = '', matches = [], matchIdx = -1;
+    const lineH = 20;
+    const updateStatus = () => {
+      const lineNum = Math.floor(scroll.scrollTop / lineH) + 1;
+      const pct = scroll.scrollHeight <= scroll.clientHeight ? 100 : Math.round((scroll.scrollTop + scroll.clientHeight) / scroll.scrollHeight * 100);
+      const suffix = pct >= 100 ? ' (END)' : ` ${pct}%`;
+      status.textContent = status.textContent.replace(/line \d+.*/, `line ${lineNum}${suffix}`);
+    };
+    const clearHighlight = () => scroll.querySelectorAll('.manhl').forEach(el => {
+      el.outerHTML = el.textContent;
+    });
+    const doSearch = (q) => {
+      clearHighlight();
+      matches = []; matchIdx = -1;
+      if (!q) return;
+      const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+      scroll.querySelectorAll('.ml').forEach(ml => {
+        const text = ml.textContent;
+        if (re.test(text)) {
+          matches.push(ml);
+          ml.innerHTML = ml.innerHTML.replace(re, m => `<span class="manhl">${m}</span>`);
+        }
+        re.lastIndex = 0;
+      });
+      if (matches.length) { matchIdx = 0; matches[0].scrollIntoView({block:'center',behavior:'smooth'}); }
+    };
+    const nextMatch = (dir) => {
+      if (!matches.length) return;
+      matchIdx = (matchIdx + dir + matches.length) % matches.length;
+      matches[matchIdx].scrollIntoView({block:'center', behavior:'smooth'});
+    };
+    scroll.onscroll = updateStatus;
+    scroll.onkeydown = e => {
+      if (searchBox && !searchBox.hidden) return;
+      if (e.key === ' ' || e.key === 'f') { e.preventDefault(); scroll.scrollBy(0, scroll.clientHeight - lineH); }
+      else if (e.key === 'b') { e.preventDefault(); scroll.scrollBy(0, -(scroll.clientHeight - lineH)); }
+      else if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); scroll.scrollBy(0, lineH); }
+      else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); scroll.scrollBy(0, -lineH); }
+      else if (e.key === 'g') { e.preventDefault(); scroll.scrollTop = 0; }
+      else if (e.key === 'G') { e.preventDefault(); scroll.scrollTop = scroll.scrollHeight; }
+      else if (e.key === '/') { e.preventDefault(); searchBox.hidden = false; searchInput.value = ''; searchInput.focus(); }
+      else if (e.key === 'n') { e.preventDefault(); nextMatch(1); }
+      else if (e.key === 'N') { e.preventDefault(); nextMatch(-1); }
+      else if (e.key === 'q') { e.preventDefault(); const inp = el('tinput'); if (inp) inp.focus(); }
+      updateStatus();
+    };
+    if (searchInput) {
+      searchInput.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); query = searchInput.value; searchBox.hidden = true; doSearch(query); scroll.focus(); }
+        else if (e.key === 'Escape') { e.preventDefault(); searchBox.hidden = true; scroll.focus(); }
+      };
+    }
+    scroll.focus();
+  });
 }
 function appWindow(o) {
   if (o.app === 'top') return `<div class="appwin"><h4>top — 09:31:07 up 2:14, 1 user, load average: 0.42, 0.31, 0.28</h4>
@@ -2025,15 +2106,36 @@ function appWindow(o) {
   if (o.app === 'man') {
     const t = o.topic;
     const it = ALL_ITEMS.find(i => i.cmd === t) || ITEM_BY_ID[t];
-    const rel = ALL_ITEMS.filter(i => i.cmd.split(' ')[0] === t && i.cmd !== t).slice(0, 10);
+    const rel = ALL_ITEMS.filter(i => i.cmd.split(' ')[0] === t && i.cmd !== t).slice(0, 20);
+    const seeAlso = ALL_ITEMS.filter(i => it && i.catName === it.catName && i.cmd !== t && !rel.includes(i)).slice(0, 8);
     if (!it && !rel.length) return `<div class="appwin"><h4>man</h4><div class="l err">No manual entry for ${esc(t)}</div></div>`;
-    return `<div class="appwin"><h4>${esc(t.toUpperCase())}(${o.section || 1})${o.section ? ' — section ' + o.section : ''}</h4>
-      <div class="l"><b>NAME</b></div><div class="l">     ${esc(t)} — ${esc(it ? it.what : 'see options below')}</div>
-      ${it && it.ex ? `<div class="l">&nbsp;</div><div class="l"><b>SYNOPSIS</b></div><div class="l">     ${esc(it.ex)}</div>` : ''}
-      ${rel.length ? `<div class="l">&nbsp;</div><div class="l"><b>OPTIONS</b></div>${rel.map(r =>
-        `<div class="l">     <span class="x">${esc(r.cmd)}</span> — ${esc(r.what)}</div>`).join('')}` : ''}
-      ${it && it.note ? `<div class="l">&nbsp;</div><div class="l"><b>NOTES</b></div><div class="l">     ${esc(it.note)}</div>` : ''}
-      <div class="keys">Space = page down · b = back · /text = search · q = quit</div></div>`;
+    let lines = [];
+    lines.push(`<b>${esc(t.toUpperCase())}(${o.section||1})</b>          Manual page          <b>${esc(t.toUpperCase())}(${o.section||1})</b>`);
+    lines.push('');
+    lines.push('<b>NAME</b>');
+    lines.push(`     ${esc(t)} — ${esc(it ? it.what : 'see options below')}`);
+    if (it && it.ex) { lines.push(''); lines.push('<b>SYNOPSIS</b>'); lines.push(`     ${esc(it.ex)}`); }
+    if (it && it.what) { lines.push(''); lines.push('<b>DESCRIPTION</b>'); lines.push(`     ${esc(cap(it.what))}.`);
+      if (it.out) lines.push(`     Example output: ${esc(it.out)}`); }
+    if (rel.length) { lines.push(''); lines.push('<b>OPTIONS</b>');
+      for (const r of rel) {
+        lines.push(`     <span class="x">${esc(r.cmd)}</span>`);
+        lines.push(`           ${esc(cap(r.what))}.`);
+        if (r.note) lines.push(`           <span class="dim">${esc(r.note)}</span>`);
+        lines.push('');
+      }
+    }
+    if (it && it.note) { lines.push('<b>NOTES</b>'); lines.push(`     ${esc(it.note)}`); }
+    if (seeAlso.length) { lines.push(''); lines.push('<b>SEE ALSO</b>');
+      lines.push('     ' + seeAlso.map(i => `${esc(i.cmd)}(1)`).join(', ')); }
+    lines.push(''); lines.push(`${esc(t)} manual          PATHfinder          ${esc(t)}(${o.section||1})`);
+    const id = 'man' + (++A._manId);
+    return `<div class="appwin manpager" id="${id}">
+      <div class="manscroll" tabindex="0">${lines.map(l => `<div class="ml">${l || '&nbsp;'}</div>`).join('')}</div>
+      <div class="manbar"><span class="manstatus">Manual page ${esc(t)}(${o.section||1}) line 1</span>
+        <span class="mansearch" hidden><span class="manlabel">/</span><input class="maninput" type="text" spellcheck="false" autocomplete="off"></span>
+      </div>
+      <div class="keys">Space page down · b page up · / search · n next match · N prev match · q quit</div></div>`;
   }
   return '';
 }
