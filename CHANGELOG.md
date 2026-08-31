@@ -12,6 +12,15 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.23] — 2026-08-31
+
+### Everything unlocked
+
+- All content is now fully accessible from the start — no progression gates, no locked topics, no sequential unlocking.
+- The mission list now shows tour headers (e.g. "Lab 01") so you can quickly find and jump to any mission group.
+- Removed the "Free roam" toggle from settings — free roam is now always on.
+- Empty placeholder modules are hidden instead of showing lock icons.
+
 ## [0.22] — 2026-08-31
 
 ### Added

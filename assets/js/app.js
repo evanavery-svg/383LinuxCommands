@@ -17,7 +17,7 @@ const DEFAULTS = {
   chunks: {},               // legacy set-completion marks, kept so old saves still read
   reviews: {},              // category id -> best score on that topic's review round
   bestCombo: 0, perfects: 0, goal: 100,
-  settings: { theme:'matrix', crt:true, bite:3, freeroam:false, briefs:true }
+  settings: { theme:'matrix', crt:true, bite:3, freeroam:true, briefs:true }
 };
 
 let P = load();
@@ -38,7 +38,9 @@ function load() {
       }
     }
     const raw = JSON.parse(stored || '{}');
-    return { ...structuredClone(DEFAULTS), ...raw, settings: { ...DEFAULTS.settings, ...(raw.settings||{}) } };
+    const merged = { ...structuredClone(DEFAULTS), ...raw, settings: { ...DEFAULTS.settings, ...(raw.settings||{}) } };
+    merged.settings.freeroam = true;
+    return merged;
   } catch { return structuredClone(DEFAULTS); }
 }
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch {} }
@@ -561,11 +563,7 @@ function renderHome(s) {
         of ${P.settings.bite} cards — a couple of minutes each.</p>
     </div>
     <div class="modlist">
-      ${MODULES.map(mo => {
-        if (!mo.ready) return `<div class="modrow locked">
-            <div class="num">${mo.num}</div>
-            <div class="body"><h3>${esc(mo.label)}</h3></div>
-            <div class="go">not added yet 🔒</div></div>`;
+      ${MODULES.filter(mo => mo.ready).map(mo => {
         const sets = allSets(mo.num);
         const pct = scoreOf(sets);
         const done = sets.filter(x => x.done).length;
@@ -713,7 +711,7 @@ function reviewFor(catId, sets) {
     cat: catId, catObj, items, builds, sets: own,
     ids: [...items.map(i => i.id), ...builds],
     /* cumulative by definition, so it makes no sense before the sets are done */
-    unlocked: P.settings.freeroam || (own.length > 0 && own.every(x => x.done)),
+    unlocked: true,
     pct: best === undefined ? null : best
   };
 }
@@ -760,11 +758,9 @@ function renderModuleList(s) {
     <h1>Learn — pick a module</h1>
     <p class="lead">The course runs over ${MODULES.length} modules.</p>
     <div class="modlist">
-      ${MODULES.map(mo => mo.ready
-        ? `<button class="modrow" data-mod="${mo.num}"><div class="num">${mo.num}</div>
-             <div class="body"><h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p></div><div class="go">▶</div></button>`
-        : `<div class="modrow locked"><div class="num">${mo.num}</div>
-             <div class="body"><h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p></div><div class="go">🔒</div></div>`).join('')}
+      ${MODULES.filter(mo => mo.ready).map(mo =>
+        `<button class="modrow" data-mod="${mo.num}"><div class="num">${mo.num}</div>
+             <div class="body"><h3>${esc(mo.label)}</h3><p>${esc(mo.blurb)}</p></div><div class="go">▶</div></button>`).join('')}
     </div>`;
   s.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => go('learn', 'mod' + b.dataset.mod));
 }
@@ -788,7 +784,7 @@ function renderPath(s, num, focusCat) {
   s.innerHTML = prompt(`cat ~/course/module${num}/path`) + `
     <h1>Your path <span class="muted" style="font-size:13px">· ${esc(mo.label)}</span></h1>
     <p class="lead">${sets.length} sets of ${P.settings.bite} cards. Finish one, take the quick check, move on.
-      ${P.settings.freeroam ? 'Free roam is on — jump anywhere you like.' : 'The next step is always the highlighted one.'}
+      Jump into any set you like.
       Clear every set in a topic and its <b>★ bonus round</b> opens at the end of the row: the whole
       topic in one sitting. It scores separately and never changes the topic's own percentage.</p>
     <div class="pathtop">
@@ -799,9 +795,7 @@ function renderPath(s, num, focusCat) {
     ${groups.map((g, gi) => {
       const gdone = g.steps.filter(x => x.set.done).length;
       const isFocus = focusCat === g.cat;
-      /* whole topics unlock in turn — inside your current topic you can
-         move around freely, which beats a wall of padlocks */
-      const gLocked = !P.settings.freeroam && nextIdx !== -1 && gi > curGroup;
+      const gLocked = false;
       return `<section class="chapter${isFocus ? ' focus' : ''}${gLocked ? ' dim' : ''}${gi === curGroup ? ' current' : ''}" id="cat-${g.cat}">
         <header><span class="ic">${gLocked ? '🔒' : g.catObj.icon}</span>
           <div><h3>${esc(g.catObj.name)}</h3><p>${gLocked ? 'Unlocks when you finish the topic above.' : esc(g.catObj.blurb)}</p></div>
@@ -1839,7 +1833,8 @@ function renderTerminal(s) {
           <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${MISSIONS.length} missions</button>
           <div class="misslist">${MISSIONS.map((mi,i) => {
             const s = P.missions[mi.id]; const parTag = s && typeof s === 'object' ? ` <span class="partag${s.cmds<=s.par?' atpar':''}">${s.cmds}/${s.par}</span>` : '';
-            return `<div class="${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
+            const hdr = (i === 0 || mi.tour !== MISSIONS[i-1].tour) ? `<div class="misstour">${esc(mi.tour)}</div>` : '';
+            return hdr + `<div class="${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
             ${s?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}${parTag}</div>`;}).join('')}</div>
         </div>`}
       </div>
@@ -2266,10 +2261,10 @@ function renderProgress(s) {
     <h2>Score by module</h2>
     <p class="lead" style="margin-bottom:10px">How much of each module you have finished, and how well.
       This is the average of your set scores — the same numbers on the path.</p>
-    ${MODULES.map(mo => { const p = mo.ready ? scoreOf(allSets(mo.num)) : 0;
+    ${MODULES.filter(mo => mo.ready).map(mo => { const p = scoreOf(allSets(mo.num));
       return `<div class="masterrow"><div class="nm">${esc(mo.label)}</div>
         <div class="bar"><i style="width:${p}%"></i></div>
-        <div class="pc">${mo.ready ? p + '%' : '—'}</div></div>`; }).join('')}
+        <div class="pc">${p}%</div></div>`; }).join('')}
 
     <h2>Retention</h2>
     <p class="lead" style="margin-bottom:10px">A different thing: how deeply each topic has settled in.
@@ -2332,11 +2327,9 @@ function openSettings() {
     <div class="row">${[50,100,200].map(n => `<button class="chip ${P.goal===n?'on':''}" data-goal="${n}">${n} XP</button>`).join('')}</div>
     <p class="muted" style="font-size:12px;margin-top:6px">One finished set is roughly 70 XP, so 100 XP is about a set and a half a day.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Path</h3>
-    <div class="row"><button class="chip ${P.settings.freeroam?'on':''}" data-roam>Free roam: ${P.settings.freeroam?'on':'off'}</button>
-      <button class="chip ${P.settings.briefs!==false?'on':''}" data-briefs>Set briefings: ${P.settings.briefs!==false?'on':'off'}</button></div>
+    <div class="row"><button class="chip ${P.settings.briefs!==false?'on':''}" data-briefs>Set briefings: ${P.settings.briefs!==false?'on':'off'}</button></div>
     <p class="muted" style="font-size:12px;margin:6px 0 0">A briefing opens each set with the commands in it and a
       worked example of when you would use them. Turn it off to go straight to the cards.</p>
-    <p class="muted" style="font-size:12px;margin-top:6px">Off keeps you on the next step. On unlocks every set so you can jump around.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Display</h3>
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Your progress</h3>
@@ -2354,7 +2347,7 @@ function openSettings() {
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Keyboard</h3>
     <p class="muted" style="font-size:12px">1–6 switch tabs · 1–4 pick an answer · Enter continues · Esc goes back · Ctrl-L clears the terminal</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">About</h3>
-    <p class="muted" style="font-size:12px">PATHfinder v${VERSION} — ${READY_MODULES.length} of ${MODULES.length} modules loaded.<br>
+    <p class="muted" style="font-size:12px">PATHfinder v${VERSION}.<br>
       &copy; ${new Date().getFullYear()} ${esc(COPYRIGHT_HOLDER)}. All rights reserved.</p>
     <div class="row" style="margin-top:8px"><button class="btn" data-changelog>View changelog</button></div>
     <div class="row" style="margin-top:18px"><button class="btn primary" data-close>Close</button></div>
@@ -2364,7 +2357,6 @@ function openSettings() {
   d.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { P.settings.theme = b.dataset.theme; save(); applySettings(); d.remove(); openSettings(); });
   d.querySelectorAll('[data-bite]').forEach(b => b.onclick = () => { P.settings.bite = +b.dataset.bite; save(); d.remove(); openSettings(); render(); });
   d.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { P.goal = +b.dataset.goal; save(); d.remove(); openSettings(); render(); });
-  d.querySelector('[data-roam]').onclick = () => { P.settings.freeroam = !P.settings.freeroam; save(); d.remove(); openSettings(); render(); };
   d.querySelector('[data-briefs]').onclick = () => { P.settings.briefs = P.settings.briefs === false; save(); d.remove(); openSettings(); render(); };
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
   d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
@@ -2424,18 +2416,12 @@ function openChangelog() {
   d.innerHTML = `<div class="inner">
     <h2>Changelog</h2>
     <p class="muted" style="font-size:12.5px;margin-top:-6px">
-      PATHfinder v${VERSION} · ${MODULES.length}-module course ·
-      ${READY_MODULES.length} module${READY_MODULES.length===1?'':'s'} loaded so far</p>
+      PATHfinder v${VERSION}</p>
     ${CHANGELOG.map(r => `<div class="release">
         <h3>v${esc(r.version)} <span class="muted">· ${esc(r.date)}</span></h3>
         <div class="rt">${esc(r.title)}</div>
         <ul>${r.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
       </div>`).join('')}
-    <div class="release upcoming">
-      <h3>Planned</h3>
-      <div class="rt">Modules ${MODULES.filter(mo => !mo.ready).map(mo => mo.num).join(', ')}</div>
-      <ul><li>Command lists for the remaining modules, each with its own lessons, drills and terminal missions.</li></ul>
-    </div>
     <p class="muted" style="font-size:11.5px">&copy; ${new Date().getFullYear()} ${esc(COPYRIGHT_HOLDER)}. All rights reserved.</p>
     <div class="row" style="margin-top:14px"><button class="btn primary" data-close>Close</button></div>
   </div>`;

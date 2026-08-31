@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.22';
+const VERSION = '0.23';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.23', date:'2026-08-31', title:'Everything unlocked',
+    notes:[
+      'All content is now fully accessible from the start — no progression gates, no locked topics, no sequential unlocking.',
+      'The mission list now shows tour headers (e.g. "Lab 01") so you can quickly find and jump to any mission group.',
+      'Removed the "Free roam" toggle from settings — free roam is now always on.',
+      'Empty placeholder modules are hidden instead of showing lock icons.'
+    ] },
   { version:'0.22', date:'2026-08-31', title:'Interactive man pages',
     notes:[
       'New: man pages are now interactive pagers. Space pages down, b pages up, j/k scroll line by line, g/G jump to top/bottom.',

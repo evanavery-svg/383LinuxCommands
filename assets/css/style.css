@@ -323,6 +323,8 @@ code,.mono{font-family:var(--font)}
 .mission.done{border-color:var(--good)}
 .misslist{max-height:230px;overflow:auto;margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .misslist div{font-size:12px;color:var(--dim);padding:3px 0;cursor:pointer}
+.misstour{font-size:11px!important;color:var(--accent2)!important;text-transform:uppercase;letter-spacing:.5px;padding:8px 0 2px!important;cursor:default!important;border-top:1px solid var(--line);margin-top:6px}
+.misstour:first-child{border-top:none;margin-top:0}
 .misslist div.done{color:var(--good)}
 .misslist div.cur{color:var(--accent);font-weight:700}
 .partag{font-size:10px;color:var(--dim);margin-left:4px}
