@@ -12,6 +12,16 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.27] — 2026-09-01
+
+### Fix lab hint button visibility
+
+- Fixed: the lab Hint button could get scrolled far out of view on labs with many steps, since it sat below the entire step checklist inside a small scrolling panel.
+- The step checklist now scrolls in its own area while the Hint and Exit lab buttons stay pinned and always visible.
+- Fixed: the lab description was showing raw HTML tags instead of rendering bold text and line breaks.
+
+---
+
 ## [0.26] — 2026-08-31
 
 ### Labs tab, interactive Vim, better hints

@@ -20,12 +20,18 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.26';
+const VERSION = '0.27';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.27', date:'2026-09-01', title:'Fix lab hint button visibility',
+    notes:[
+      'Fixed: the lab Hint button could get scrolled far out of view on labs with many steps, since it sat below the entire step checklist inside a small scrolling panel.',
+      'The step checklist now scrolls in its own area while the Hint and Exit lab buttons stay pinned and always visible.',
+      'Fixed: the lab description was showing raw HTML tags instead of rendering bold text and line breaks.'
+    ] },
   { version:'0.26', date:'2026-08-31', title:'Labs tab, interactive Vim, better hints',
     notes:[
       'Labs now have their own top-level tab between Terminal and Reference.',

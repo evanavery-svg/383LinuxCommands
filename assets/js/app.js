@@ -1868,9 +1868,9 @@ function renderLabPanel() {
     <p class="muted" style="font-size:12px;margin:4px 0 10px">${esc(d.subtitle)}</p>
     <div class="bar" style="margin-bottom:8px"><i style="width:${pct}%"></i></div>
     <div class="muted" style="font-size:11.5px;margin-bottom:10px">Step ${Math.min(cur + 1, total)} of ${total}</div>
-    <div class="check-list">${stepsHtml}</div>
+    <div class="lab-steps"><div class="check-list">${stepsHtml}</div></div>
     ${allDone ? '<div class="note" style="margin-top:10px;color:var(--good);font-weight:700">Lab complete!</div>' : ''}
-    <div class="row" style="margin-top:12px">
+    <div class="row" style="margin-top:12px;flex-shrink:0">
       ${!allDone ? '<button class="btn ghost sm" data-lhint>Hint</button>' : ''}
       <button class="btn ghost sm" data-lexit>${allDone ? 'Continue' : 'Exit lab'}</button>
     </div>
@@ -1947,7 +1947,7 @@ function renderLabTerminal(s) {
   const lb = A.lab;
   s.innerHTML = prompt('bash --login') + `
     <h1>Lab — ${esc(lb.data.title)}</h1>
-    <p class="lead phone-hide">${esc(lb.data.description)}</p>
+    <p class="lead phone-hide">${lb.data.description}</p>
     <div class="termgrid">
       <div>
         <div id="term"></div>
