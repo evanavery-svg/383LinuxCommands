@@ -12,6 +12,30 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.33] — 2026-09-01
+
+### Bug fixes and performance pass
+
+**Fixed**
+
+- **Data loss:** unsaved vim edits were silently discarded whenever the screen redrew. Clicking the file tree, a mission row, or anything else that re-rendered reverted your buffer to the file on disk with no warning. Vim now keeps its editing state — text, cursor, mode, and modified flag — across redraws.
+- The `explain <command>` breakdown box stopped rendering in v0.31, because the auto one-liner explainer added that release took over the same internal name and shadowed it. Both work again.
+- After opening a man page, every following command stole keyboard focus away from the prompt, so anything typed went to the pager instead of the shell.
+- A corrupted saved lab could leave you in an unusable lab with no home directory and no explanation. Saved lab files are now validated before being restored, the step index is bounds-checked, and a clear message appears when a snapshot is rejected.
+- Opening the changelog threw an error every time.
+- A reverse-i-search (`Ctrl-R`) left running when you switched tabs stayed stuck on.
+- Closing one of two vim windows open on the same file could close the wrong one.
+
+**Performance**
+
+- The terminal now keeps a bounded scrollback (800 lines), like a real terminal, instead of growing without limit and getting slower all session. Open editor windows are never trimmed away.
+- Solving a mission or lab step no longer redraws the terminal twice.
+- Progress saves are batched — finishing a lab used to fire ~28 back-to-back writes to browser storage. Destructive actions (wipe, import, leaving a lab) still save immediately.
+- Man pages are rendered once and cached instead of being rebuilt on every command.
+- Reference and mission search no longer drop keystrokes: search text is precomputed once and input is debounced (Reference search went from ~3.5 ms per keystroke to ~0.02 ms).
+
+---
+
 ## [0.32] — 2026-09-01
 
 ### Fill in the 6 missing reference cards

@@ -44,7 +44,20 @@ function load() {
     return merged;
   } catch { return structuredClone(DEFAULTS); }
 }
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch {} }
+/* Completing a lab credits 13 teach items, and each one used to trigger two
+   synchronous ~32KB localStorage writes — ~28 back-to-back stringify+disk hits
+   at the exact moment the completion toast fires. Coalesce them; flush on the
+   way out so nothing is lost. */
+function saveNow() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch {} }
+let _saveT = 0;
+function save() {
+  if (_saveT) return;
+  _saveT = setTimeout(() => { _saveT = 0; saveNow(); }, 250);
+}
+function flushSave() { if (_saveT) { clearTimeout(_saveT); _saveT = 0; } saveNow(); }
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
+addEventListener('pagehide', flushSave);
+addEventListener('beforeunload', flushSave);
 
 /* Shell history persists across sessions like a real .bash_history, capped
    at 200 lines so localStorage never grows without bound. Kept in its own
@@ -92,7 +105,7 @@ function importFile() {
       try {
         const raw = JSON.parse(r.result);
         P = { ...structuredClone(DEFAULTS), ...raw, settings:{ ...DEFAULTS.settings, ...(raw.settings||{}) } };
-        save(); toast('Progress restored from file'); render();
+        flushSave(); toast('Progress restored from file'); render();
       } catch { toast('That file was not valid progress data'); }
     };
     r.readAsText(f);
@@ -232,7 +245,7 @@ function scoreAnswer(id, ok) {
     if (P.quick[id] === undefined) P.quick[id] = false;
     s.w++; s.b = Math.max(0, s.b - 1); A.combo = 0; awardXP(2);
   }
-  save();
+  /* awardXP already saved on both branches. */
 }
 
 /* a set counts as finished once every card in it has been learned.
@@ -475,8 +488,7 @@ const A = {
   showScenarios: false,
   scenario: null,
   lab: null,
-  isearch: null,
-  _manId: 0
+  isearch: null
 };
 
 const TABS = [
@@ -566,6 +578,9 @@ function go(tab, view) {
      binning it, so a stray tab click does not cost the whole attempt — the
      path offers it back as "resume". Ordinary rounds are short; they reset. */
   if (A.quiz && A.quiz.opt.review && A.quiz.i < A.quiz.ids.length) A.paused = A.quiz;
+  /* A reverse-i-search belongs to the terminal input that started it; leaving
+     the tab must not carry a phantom search into the next visit. */
+  A.isearch = null;
   A.tab = tab; A.view = view || null; A.quiz = null; A.learn = null; render();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1839,20 +1854,40 @@ function exitScenario() {
   setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
 }
 
+/* A snapshot round-trips through localStorage, where it can be truncated,
+   hand-edited, or left behind by an older build. JSON.parse succeeding proves
+   nothing about shape — {garbage:true} parses fine and would replace the whole
+   filesystem — so check the tree really is a filesystem before trusting it. */
+function validLabSnapshot(fs) {
+  if (!fs || fs.type !== 'dir' || !fs.children) return false;
+  const home = fs.children.home;
+  const student = home && home.type === 'dir' && home.children && home.children.student;
+  return !!(student && student.type === 'dir' && student.children);
+}
 function startLab(id) {
   const lab = LAB_BY_ID[id];
   if (!lab) return;
   const sh = hydrateShell(new Shell());
   const saved = P.labs[id];
-  const stepsDone = saved ? saved.done : 0;
-  /* Restore a prior in-flight lab's filesystem so pause/resume actually
-     works. Guarded so a shape mismatch never crashes the lab open. */
+  /* A corrupt `done` must not make the panel claim the lab is finished. */
+  const stepsDone = Math.max(0, Math.min(lab.steps.length, (saved && saved.done) | 0));
+  /* Restore a prior in-flight lab's filesystem so pause/resume actually works. */
+  let restoreFailed = false;
   if (saved && saved.fs) {
-    try {
-      sh.root = JSON.parse(JSON.stringify(saved.fs));
-      if (saved.cwd) sh.cwd = saved.cwd;
-      if (saved.prev) sh.prev = saved.prev;
-    } catch { /* fall through with fresh root */ }
+    let tree = null;
+    try { tree = JSON.parse(JSON.stringify(saved.fs)); } catch { tree = null; }
+    if (validLabSnapshot(tree)) {
+      sh.root = tree;
+      /* Only honour a saved cwd that still resolves to a real directory in
+         the restored tree, else the student lands nowhere and every command
+         fails with no way back but Restart lab. */
+      const at = saved.cwd && sh.node(saved.cwd);
+      sh.cwd = at && at.type === 'dir' ? saved.cwd : '/home/student';
+      const back = saved.prev && sh.node(saved.prev);
+      sh.prev = back && back.type === 'dir' ? saved.prev : sh.cwd;
+    } else {
+      restoreFailed = true;
+    }
   }
   A.lab = { data: lab, sh, stepIdx: stepsDone, hintShown: false };
   A.sh = sh;
@@ -1863,6 +1898,9 @@ function startLab(id) {
   pushTerm({ t:'note', s:'--- ' + lab.title + ' ---' });
   pushTerm({ t:'out', s: lab.subtitle });
   pushTerm({ t:'out', s:'' });
+  if (restoreFailed) {
+    pushTerm({ t:'err', s:'Saved lab files could not be restored — starting from a fresh filesystem. Your step progress is intact.' });
+  }
   if (stepsDone > 0 && stepsDone < lab.steps.length) {
     pushTerm({ t:'note', s:`Resuming from step ${stepsDone + 1} of ${lab.steps.length}.` });
   }
@@ -1882,7 +1920,8 @@ function snapshotLabFs() {
 }
 function exitLab() {
   snapshotLabFs();
-  save();
+  flushSave();          // the student may close the tab right after leaving
+
   A.lab = null;
   A.labRedo = null;
   A.sh = hydrateShell(new Shell());
@@ -1901,7 +1940,6 @@ function restartLab() {
   A.lab.hintShown = false;
   A.labRedo = null;
   pushTerm({ t:'note', s:'Lab restarted from scratch.' });
-  paintTerm();
   render();
 }
 /* Look at the step's hint and check() body for a filename this step is
@@ -2195,8 +2233,7 @@ function renderTerminal(s) {
           <div class="misslist">${TERM_MISSIONS.map((mi,i) => {
             const s = P.missions[mi.id]; const parTag = s && typeof s === 'object' ? ` <span class="partag${s.cmds<=s.par?' atpar':''}">${s.cmds}/${s.par}</span>` : '';
             const hdr = (i === 0 || mi.tour !== TERM_MISSIONS[i-1].tour) ? `<div class="misstour" data-tour="${esc(mi.tour)}">${esc(mi.tour)}</div>` : '';
-            const hay = (mi.goal + ' ' + mi.tour + ' ' + (mi.teach||'')).toLowerCase();
-            return hdr + `<div class="missrow ${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}" data-hay="${esc(hay)}" data-solved="${s?1:0}">
+            return hdr + `<div class="missrow ${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}" data-hay="${esc(mi._hay)}" data-solved="${s?1:0}">
             ${s?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}${parTag}</div>`;}).join('')}</div>
         </div>`}
       </div>
@@ -2299,7 +2336,8 @@ function renderTerminal(s) {
     });
     s.querySelectorAll('.misstour').forEach(t => { t.hidden = !tourShown.has(t); });
   };
-  if (find) find.oninput = applyMissFilter;
+  let missT = 0;
+  if (find) find.oninput = () => { clearTimeout(missT); missT = setTimeout(applyMissFilter, 120); };
   if (only) only.onchange = applyMissFilter;
 }
 const LAB_IDS = new Set(LABS.map(l => l.id));
@@ -2307,12 +2345,40 @@ const TERM_MISSIONS = MISSIONS.filter(mi => {
   const tourKey = mi.tour.toLowerCase().replace(/\s+/g, '');
   return !LAB_IDS.has(tourKey);
 });
+/* Static per mission, so build the search haystack once instead of
+   recomputing it for all 103 rows on every terminal render. */
+TERM_MISSIONS.forEach(mi => {
+  mi._hay = (mi.goal + ' ' + mi.tour + ' ' + (mi.teach || '')).toLowerCase();
+});
 function nextMission(afterId) {
   const pool = TERM_MISSIONS;
   const start = afterId ? pool.findIndex(m2 => m2.id === afterId) + 1 : 0;
   return pool.slice(start).find(m2 => !P.missions[m2.id]) || pool.find(m2 => !P.missions[m2.id]) || null;
 }
-function pushTerm(o) { A.buffer.push(o); }
+/* App windows (vim, man) carry live UI state across repaints, so they need an
+   identity that survives one. Allocating the id here rather than in the render
+   keeps it stable — allocating during paint gave every repaint a new id. */
+/* Real terminals bound their scrollback; this one used to grow without limit,
+   and paintTerm rebuilds the whole buffer on every command (~15ms per 1000
+   entries), so an hour-long session got steadily laggier. A single `cat big.log`
+   adds 60 entries. */
+const BUF_MAX = 800;
+function pushTerm(o) {
+  if (o && o.t === 'app' && o._id == null) o._id = ++vimIdCounter;
+  A.buffer.push(o);
+  trimTerm();
+}
+function trimTerm() {
+  let over = A.buffer.length - BUF_MAX;
+  if (over <= 0) return;
+  /* Drop the oldest entries, but never an app window — vim holds unsaved edits
+     in `_vimState`, and trimming it would silently discard the student's work. */
+  for (let i = 0; i < A.buffer.length && over > 0; ) {
+    if (A.buffer[i].t === 'app') { i++; continue; }
+    A.buffer.splice(i, 1);
+    over--;
+  }
+}
 
 /* Translate the command a learner just typed into a plain-English one-liner.
    Rules-based on purpose: covers the ~30 commands the curriculum actually
@@ -2442,7 +2508,7 @@ function runLine(line) {
   pushTerm({ t:'in', cwd: shortCwd(), s: line });
   if (P.settings.explain !== false) {
     const exp = explainCommand(line);
-    if (exp) pushTerm({ t:'explain', s: exp });
+    if (exp) pushTerm({ t:'explainline', s: exp });
   }
   const res = A.sh.run(line);
   saveHistory(A.sh.history);
@@ -2471,7 +2537,7 @@ function runLine(line) {
         A.missTries = 0; A.missCmds = 0; A.missRedo = false;
         const nx = nextMission();
         A.mission = nx;
-        save(); paintTerm(); render();
+        save(); render();   /* render() repaints the terminal itself */
         setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
         return;
       }
@@ -2485,7 +2551,6 @@ function runLine(line) {
       A.missCmds = 0;
       const nx = nextMission(A.mission.id);
       A.mission = nx;
-      paintTerm();
       render();
       setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
       toast(nx ? '✓ Mission solved — next one loaded' : '🏆 Every mission solved!');
@@ -2530,7 +2595,6 @@ function runLine(line) {
       awardXP(40); save(); checkBadges();
       pushTerm({ t:'note', s:'✓ Scenario complete! (+40 XP)' });
       toast('Scenario solved — well done!');
-      paintTerm();
       render();
       setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
       return;
@@ -2550,7 +2614,6 @@ function runLine(line) {
       pushTerm({ t:'note', s:`✓ Step re-solved for practice (no XP).` });
       save();
       A.labRedo = null;
-      paintTerm();
       render();
       setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
       return;
@@ -2596,7 +2659,6 @@ function runLine(line) {
         save();
       }
       lb.hintShown = false;
-      paintTerm();
       render();
       setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
       return;
@@ -2613,7 +2675,7 @@ function paintTerm() {
       case 'in':   return `<div class="l in"><span class="ps">[student@fedora <span class="pth">${esc(o.cwd)}</span>]$</span> <span class="c${o.s ? ' explainable' : ''}"${o.s ? ` data-explain="${esc(o.s)}"` : ''}>${esc(o.s)}</span></div>`;
       case 'err':  return `<div class="l err">${esc(o.s)}</div>`;
       case 'note': return `<div class="l note">${esc(o.s)}</div>`;
-      case 'explain': return `<div class="l explain">↳ ${esc(o.s)}</div>`;
+      case 'explainline': return `<div class="l explainline">↳ ${esc(o.s)}</div>`;
       case 'pager':return `<div class="l"><span class="pager">${esc(o.s)}</span></div>`;
       case 'garbage': return `<div class="l garbage">^@^H&lt;9f&gt;ELF^B^A^A^@&lt;fe&gt;^C&gt;^@^A^@^@&lt;c0&gt;^E^@^@&lt;bf&gt;@^@8^@^M^@@^@^^</div>`;
       case 'ls':   return `<div class="l nw">${esc(o.s)}<span class="${o.kind==='dir'?'d':o.kind==='link'?'ln':o.exec?'x':''}">${esc(o.name)}</span></div>`;
@@ -2638,6 +2700,11 @@ function paintTerm() {
     };
   });
   term.querySelectorAll('.manpager').forEach(pager => {
+    /* The pager's DOM is rebuilt every paint, so "have I already opened this
+       window?" has to be remembered on the buffer entry, not on the element. */
+    const manEntry = A.buffer.find(o => o.t === 'app' && o._id === +pager.dataset.manid);
+    const wasOpen = !!(manEntry && manEntry._opened);
+    if (manEntry) manEntry._opened = true;
     const scroll = pager.querySelector('.manscroll');
     const status = pager.querySelector('.manstatus');
     const searchBox = pager.querySelector('.mansearch');
@@ -2694,7 +2761,10 @@ function paintTerm() {
         else if (e.key === 'Escape') { e.preventDefault(); searchBox.hidden = true; scroll.focus(); }
       };
     }
-    scroll.focus();
+    /* Focus the pager only when it first opens. Doing it on every repaint stole
+       focus back from the prompt after each subsequent command, so anything the
+       student typed went to the pager instead of the shell. */
+    if (!wasOpen) scroll.focus();
   });
   term.querySelectorAll('.vimpager').forEach(pager => initVim(pager));
 }
@@ -2706,13 +2776,32 @@ function initVim(pager) {
   const statusEl = pager.querySelector('.vimstatus');
   const cmdEl = pager.querySelector('.vimcmd');
 
+  /* paintTerm rebuilds the terminal's innerHTML wholesale, which destroys this
+     pager's DOM and re-runs initVim. Live editor state therefore cannot live in
+     the DOM or in these closures alone — it is mirrored onto the buffer entry so
+     an unrelated repaint (a mission click, the file-tree toggle) restores the
+     buffer instead of silently reverting to what is on disk. */
+  const vimId = +pager.dataset.vimid;
+  const entry = A.buffer.find(o => o.t === 'app' && o._id === vimId);
+  const saved = entry && entry._vimState;
+
   const fileNode = filepath ? A.sh.node(filepath) : null;
-  let lines = (fileNode && !isNew) ? (fileNode.content || '').split('\n') : [''];
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-  let row = 0, col = 0, mode = 'NORMAL', modified = false;
-  let cmdBuf = '', statusMsg = '';
+  let lines, row, col, mode, modified;
+  if (saved) {
+    lines = saved.lines.slice();
+    row = saved.row; col = saved.col; mode = saved.mode; modified = saved.modified;
+  } else {
+    lines = (fileNode && !isNew) ? (fileNode.content || '').split('\n') : [''];
+    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+    row = 0; col = 0; mode = 'NORMAL'; modified = false;
+  }
+  let cmdBuf = saved ? saved.cmdBuf : '';
+  let statusMsg = '';
   let pendingKey = '';
   const VISIBLE = 20;
+  const persist = () => {
+    if (entry) entry._vimState = { lines: lines.slice(), row, col, mode, modified, cmdBuf };
+  };
 
   function clamp() {
     row = Math.max(0, Math.min(row, lines.length - 1));
@@ -2721,6 +2810,7 @@ function initVim(pager) {
     if (col < 0) col = 0;
   }
   function paint() {
+    persist();
     let scrollTop = 0;
     if (row >= VISIBLE) scrollTop = row - VISIBLE + 1;
     let html = '';
@@ -2799,7 +2889,9 @@ function initVim(pager) {
     return true;
   }
   function quit() {
-    const idx = A.buffer.findIndex(o => o.t === 'app' && o.app === 'vim' && o.path === filepath);
+    /* Match on the window's own id, not its path — two vim windows open on the
+       same file would otherwise close whichever came first. */
+    const idx = A.buffer.findIndex(o => o.t === 'app' && o._id === vimId);
     if (idx >= 0) A.buffer.splice(idx, 1);
     paintTerm();
     const inp = el('tinput'); if (inp) inp.focus();
@@ -2910,11 +3002,24 @@ function initVim(pager) {
     origKeydown(e);
   };
 
-  statusMsg = isNew ? `"${filename}" [New File]` : `"${filename}" ${lines.length}L, ${(fileNode?.content||'').length}C`;
+  /* Only announce the file and grab focus the first time the window opens —
+     on a repaint the student is mid-edit and may be typing at the prompt. */
+  if (!saved) {
+    statusMsg = isNew ? `"${filename}" [New File]` : `"${filename}" ${lines.length}L, ${(fileNode?.content||'').length}C`;
+  }
   paint();
-  linesEl.focus();
+  if (!saved) linesEl.focus();
 }
+/* A man page's body is built by scanning ALL_ITEMS several times over. It never
+   changes once rendered, but it stays in the buffer and paintTerm re-runs this
+   for every window on every command — so cache the result on the entry. */
 function appWindow(o) {
+  if (o.app === 'man' && o._html) return o._html;
+  const html = buildAppWindow(o);
+  if (o.app === 'man') o._html = html;
+  return html;
+}
+function buildAppWindow(o) {
   if (o.app === 'top') return `<div class="appwin"><h4>top — 09:31:07 up 2:14, 1 user, load average: 0.42, 0.31, 0.28</h4>
     <div class="l">Tasks: 213 total, 1 running, 212 sleeping</div>
     <div class="l">%Cpu(s):  2.3 us,  0.7 sy, 96.8 id</div>
@@ -2925,7 +3030,7 @@ function appWindow(o) {
     <div class="l"> 2841 student   20   0    5.1M  0.0  0.1 bash</div>
     <div class="keys">h = help · q = quit · (this snapshot does not refresh)</div></div>`;
   if (o.app === 'vim') {
-    return `<div class="appwin vimpager" data-vimid="${vimIdCounter++}" data-vimpath="${esc(o.path||'')}" data-vimfile="${esc(o.file)}" data-vimnew="${o.isNew?1:0}">
+    return `<div class="appwin vimpager" data-vimid="${o._id}" data-vimpath="${esc(o.path||'')}" data-vimfile="${esc(o.file)}" data-vimnew="${o.isNew?1:0}">
       <div class="vimlines" tabindex="0"></div>
       <div class="vimstatus"></div>
       <div class="vimcmd hidden"></div>
@@ -2957,8 +3062,8 @@ function appWindow(o) {
     if (seeAlso.length) { lines.push(''); lines.push('<b>SEE ALSO</b>');
       lines.push('     ' + seeAlso.map(i => `${esc(i.cmd)}(1)`).join(', ')); }
     lines.push(''); lines.push(`${esc(t)} manual          PATHfinder          ${esc(t)}(${o.section||1})`);
-    const id = 'man' + (++A._manId);
-    return `<div class="appwin manpager" id="${id}">
+    const id = 'man' + o._id;
+    return `<div class="appwin manpager" id="${id}" data-manid="${o._id}">
       <div class="manscroll" tabindex="0">${lines.map(l => `<div class="ml">${l || '&nbsp;'}</div>`).join('')}</div>
       <div class="manbar"><span class="manstatus">Manual page ${esc(t)}(${o.section||1}) line 1</span>
         <span class="mansearch" hidden><span class="manlabel">/</span><input class="maninput" type="text" spellcheck="false" autocomplete="off"></span>
@@ -2979,9 +3084,7 @@ function renderReference(s) {
     <div id="refout"></div>`;
   const draw = (q = '') => {
     const ql = q.toLowerCase().trim();
-    const hits = ALL_ITEMS.filter(i => !ql || i.cmd.toLowerCase().includes(ql) || i.what.toLowerCase().includes(ql)
-      || (i.note||'').toLowerCase().includes(ql) || i.catName.toLowerCase().includes(ql) || (i.ex||'').toLowerCase().includes(ql)
-      || (i.demo ? (i.demo.where||'') + i.demo.before + i.demo.after : '').toLowerCase().includes(ql));
+    const hits = ql ? ALL_ITEMS.filter(i => i._hay.includes(ql)) : ALL_ITEMS;
     if (!hits.length) { el('refout').innerHTML = `<p class="muted">No match. <span class="mono">apropos</span> would say: nothing appropriate.</p>`; return; }
     let html = '', cat = null;
     hits.forEach(i => {
@@ -3000,7 +3103,13 @@ function renderReference(s) {
     el('refout').innerHTML = html;
   };
   draw();
-  el('refsearch').oninput = e => draw(e.target.value);
+  /* Redrawing 283 cards on every keypress dropped keystrokes on a phone. */
+  let refT = 0;
+  el('refsearch').oninput = e => {
+    const v = e.target.value;
+    clearTimeout(refT);
+    refT = setTimeout(() => draw(v), 120);
+  };
   el('refsearch').focus();
 }
 
@@ -3238,7 +3347,7 @@ function confirmWipe() {
     const keep = { ...P.settings }, goal = P.goal;
     P = structuredClone(DEFAULTS);
     P.settings = keep; P.goal = goal;         // preferences are not progress
-    save();
+    flushSave();                              // destructive: must land now, not in 250ms
     A.sh = null; A.mission = null; A.learn = null; A.quiz = null; A.paused = null;
     d.remove();
     toast('Progress wiped — starting fresh');
@@ -3265,11 +3374,6 @@ function openChangelog() {
   document.body.appendChild(d);
   d.onclick = e => { if (e.target === d) d.remove(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
-  d.querySelector('[data-export2]').onclick = () => {
-    navigator.clipboard?.writeText(JSON.stringify(P)).then(() => toast('Backup copied to the clipboard'),
-      () => window.prompt('Copy your progress:', JSON.stringify(P)));
-  };
-  d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
 }
 
 /* ---------------- reference card popover ---------------- */

@@ -20,12 +20,25 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.32';
+const VERSION = '0.33';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.33', date:'2026-09-01', title:'Bug fixes and performance pass',
+    notes:[
+      'Fixed data loss: unsaved vim edits were silently discarded whenever the screen redrew — clicking the file tree, a mission row, or anything else that re-rendered reverted your buffer to the file on disk. Vim now keeps its editing state across redraws.',
+      'Fixed: the "explain <command>" breakdown box stopped rendering in v0.31 because the auto one-liner explainer took over the same internal name. Both work again.',
+      'Fixed: after opening a man page, every following command stole your keyboard focus away from the prompt, so what you typed went nowhere.',
+      'Fixed: a corrupted saved lab could leave you in an unusable lab with no home directory and no explanation. Saved lab files are now validated before being restored, with a clear message when one is rejected.',
+      'Fixed: opening the changelog threw an error every time.',
+      'Fixed: a reverse-i-search (Ctrl-R) left running when you switched tabs stayed stuck on.',
+      'The terminal now keeps a bounded scrollback (800 lines) like a real terminal, instead of growing without limit and getting slower all session.',
+      'Solving a mission or lab step no longer redraws the terminal twice.',
+      'Progress saves are now batched — finishing a lab used to fire ~28 back-to-back writes to browser storage.',
+      'Reference and mission search are faster and no longer drop keystrokes while typing.'
+    ] },
   { version:'0.32', date:'2026-09-01', title:'Fill in the 6 missing reference cards',
     notes:[
       'Added reference cards for the six commands Lab 01 teaches that were missing from the reference tab: grep, sed, sed -i, pipe (|), redirect (>), printf, and running an executable script (./name.sh).',
@@ -1841,6 +1854,14 @@ CURRICULUM.forEach(cat => cat.lessons.forEach(les => les.items.forEach(it => {
   ALL_ITEMS.push(it);
 })));
 const ITEM_BY_ID = Object.fromEntries(ALL_ITEMS.map(i => [i.id, i]));
+/* One lowercased haystack per item, built once. The Reference search used to
+   lowercase six fields of all 283 items on every keystroke — ~1,700 throwaway
+   strings per keypress over data that never changes. */
+ALL_ITEMS.forEach(i => {
+  i._hay = [i.cmd, i.what, i.note, i.catName, i.ex,
+            i.demo && ((i.demo.where || '') + i.demo.before + i.demo.after)]
+    .filter(Boolean).join(' ').toLowerCase();
+});
 const LESSONS = CURRICULUM.flatMap(c => c.lessons.map(l => ({ ...l, mod: c.mod, cat: c.id, catName: c.name, icon: c.icon })));
 
 /* hang each module's topics off its entry, and count what it holds */

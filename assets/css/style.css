@@ -305,7 +305,7 @@ code,.mono{font-family:var(--font)}
 #term .in .c{color:var(--fg)}
 #term .err{color:var(--bad)}
 #term .note{color:var(--warn)}
-#term .explain{color:var(--dim);font-size:12px;font-style:italic;padding-left:1.2em;opacity:.85}
+#term .explainline{color:var(--dim);font-size:12px;font-style:italic;padding-left:1.2em;opacity:.85}
 #term .pager{color:var(--bg);background:var(--fg);display:inline-block;padding:0 6px}
 #term .garbage{color:var(--bad);letter-spacing:2px;filter:blur(.3px)}
 #term .d{color:var(--accent2);font-weight:700}
