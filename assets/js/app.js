@@ -462,6 +462,8 @@ const A = {
   mission: null,
   missTries: 0,
   missCmds: 0,
+  missRedo: false,      // when true, current mission is a practice replay — no XP, no advance
+  labRedo: null,        // when set, holds the step index being re-attempted for practice
   histIdx: -1,
   combo: 0,
   exam: null,
@@ -1859,6 +1861,7 @@ function startLab(id) {
 }
 function exitLab() {
   A.lab = null;
+  A.labRedo = null;
   A.sh = hydrateShell(new Shell());
   A.buffer = [];
   go('labs');
@@ -1871,6 +1874,7 @@ function renderLabPanel() {
   const cur = lb.stepIdx;
   const allDone = cur >= total;
   const pct = Math.round(cur / total * 100);
+  const redoIdx = A.labRedo;   /* when set, this step is being replayed */
   let stepsHtml = '';
   let lastSection = '';
   for (let i = 0; i < total; i++) {
@@ -1880,15 +1884,23 @@ function renderLabPanel() {
       stepsHtml += `<div class="lab-section">${esc(step.section)}</div>`;
     }
     const done = i < cur;
-    const active = i === cur;
-    stepsHtml += `<div class="check-item${done ? ' passed' : ''}${active ? ' active' : ''}">
-      <span class="check-icon">${done ? '✓' : active ? '▸' : '○'}</span>
-      <span>${esc(step.desc)}</span>
+    const isRedo = redoIdx === i;
+    const active = i === cur || isRedo;
+    const teachItem = active && step.teach && ITEM_BY_ID[step.teach] ? ITEM_BY_ID[step.teach] : null;
+    /* completed steps get a redo click affordance; the active step
+       (or a step being replayed) shows the reference popover button. */
+    const redoAttr = done && !isRedo ? ` data-redostep="${i}" title="Click to practice this step"` : '';
+    stepsHtml += `<div class="check-item${done ? ' passed' : ''}${active ? ' active' : ''}${isRedo ? ' redo' : ''}${done && !isRedo ? ' clickable' : ''}"${redoAttr}>
+      <span class="check-icon">${isRedo ? '↺' : done ? '✓' : active ? '▸' : '○'}</span>
+      <span>${esc(step.desc)}${teachItem ? ` <button class="btn refbtn" data-refs="${esc(step.teach)}" title="Show ${esc(teachItem.cmd)} reference card">? ${esc(teachItem.cmd)}</button>` : ''}</span>
     </div>`;
     if (active && step.hint) {
       stepsHtml += `<div class="lab-hint" id="labhintinline" hidden>
         <span class="hint-icon">💡</span> <code>${esc(step.hint)}</code>
       </div>`;
+    }
+    if (isRedo) {
+      stepsHtml += `<div class="lab-hint" style="color:var(--dim);border-left-color:var(--dim)">Practice run — no XP, just reinforcement. <button class="btn ghost sm" data-endredostep>Back to current</button></div>`;
     }
   }
   return `<div class="lab-panel" id="labpanel">
@@ -2045,6 +2057,16 @@ function renderLabTerminal(s) {
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   bindTreeClicks();
+  const rs = s.querySelector('[data-refs]');
+  if (rs) rs.onclick = e => { e.stopPropagation(); openRefCard(rs.dataset.refs); };
+  s.querySelectorAll('[data-redostep]').forEach(el2 => el2.onclick = e => {
+    if (e.target.closest('.refbtn')) return;
+    A.labRedo = parseInt(el2.dataset.redostep);
+    render();
+    setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+  });
+  const endrs = s.querySelector('[data-endredostep]');
+  if (endrs) endrs.onclick = () => { A.labRedo = null; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
   const activeStep = s.querySelector('.check-item.active');
   if (activeStep) activeStep.scrollIntoView({ block: 'nearest' });
 }
@@ -2083,9 +2105,10 @@ function renderTerminal(s) {
           <div class="treeview">${buildTree(A.sh.root, '', A.sh.cwd, 0)}</div>
           <div class="treehint">Click to expand/collapse. Double-click to cd.</div>
         </div>` : `<div class="mission ${cur?'':'done'}" id="missionbox">
-          <h3>${cur ? 'Mission ' + (TERM_MISSIONS.indexOf(cur)+1) + ' / ' + TERM_MISSIONS.length : 'All missions solved'}</h3>
-          ${cur ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">${esc(cur.tour)}</div>
+          <h3>${cur ? 'Mission ' + (TERM_MISSIONS.indexOf(cur)+1) + ' / ' + TERM_MISSIONS.length : 'All missions solved'}${A.missRedo ? ' <span class="redo-tag">practice</span>' : ''}</h3>
+          ${cur ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">${esc(cur.tour)}${cur.teach && ITEM_BY_ID[cur.teach] ? ` · <button class="btn refbtn" data-refm="${esc(cur.teach)}" title="Show ${esc(ITEM_BY_ID[cur.teach].cmd)} reference card">? ${esc(ITEM_BY_ID[cur.teach].cmd)}</button>` : ''}</div>
                    <p class="goal">${esc(cur.goal)}</p>
+                   ${A.missRedo ? '<p class="muted" style="font-size:11.5px;margin-top:-2px">Redoing a solved one — no XP awarded, but a mastery bump on success. <button class="btn ghost sm" data-endredo>Back to current</button></p>' : ''}
                    <div class="muted" style="font-size:12px" id="hintbox"></div>`
                 : `<p class="goal">You have cleared every mission. Free-play mode: try anything you like.</p>`}
           <div class="bar" style="margin-top:10px"><i style="width:${solved/TERM_MISSIONS.length*100}%"></i></div>
@@ -2158,7 +2181,19 @@ function renderTerminal(s) {
   };
   s.querySelectorAll('[data-sexit],[data-sexit2]').forEach(b => b.onclick = () => exitScenario());
   bindTreeClicks();
-  s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => { A.mission = MISSIONS.find(x => x.id === d.dataset.m); render(); });
+  s.querySelectorAll('[data-m]').forEach(d => d.onclick = () => {
+    const m = MISSIONS.find(x => x.id === d.dataset.m);
+    if (!m) return;
+    A.mission = m;
+    A.missCmds = 0;
+    A.missTries = 0;
+    A.missRedo = !!P.missions[m.id];   /* clicking a ✓ one enters practice mode */
+    render();
+  });
+  const rm = s.querySelector('[data-refm]');
+  if (rm) rm.onclick = e => { e.stopPropagation(); openRefCard(rm.dataset.refm); };
+  const endr = s.querySelector('[data-endredo]');
+  if (endr) endr.onclick = () => { A.missRedo = false; A.missCmds = 0; A.missTries = 0; A.mission = nextMission(); render(); };
   /* on a phone the 55-row list is collapsed by default so the terminal is not
      pushed off the screen; this reveals it */
   const lt = s.querySelector('[data-listtoggle]');
@@ -2204,6 +2239,37 @@ function nextMission(afterId) {
   return pool.slice(start).find(m2 => !P.missions[m2.id]) || pool.find(m2 => !P.missions[m2.id]) || null;
 }
 function pushTerm(o) { A.buffer.push(o); }
+
+/* After N failed attempts, tell the learner what the checker is really
+   looking for and what state it currently sees. Beats silent rejection. */
+function diagnose(sh, hint) {
+  const lines = [];
+  lines.push(`  📁 cwd: ${sh.cwd}`);
+  const tokens = (hint || '').split(/\s+/);
+  const seen = new Set();
+  for (const raw of tokens) {
+    if (!raw || raw.startsWith('-') || raw === '|' || raw === '>' || raw === '<') continue;
+    const t = raw.replace(/^['"]|['"]$/g, '');
+    if (!t || !/[.\/\w]/.test(t) || seen.has(t)) continue;
+    seen.add(t);
+    let node = null, path = t;
+    try { path = sh.norm(sh.expand(t)); node = sh.node(path); } catch {}
+    if (!node) continue;
+    if (node.type === 'dir') {
+      const kids = Object.keys(node.children || {}).slice(0, 6).join('  ');
+      lines.push(`  📂 ${path}/: ${kids || '(empty)'}`);
+    } else {
+      const preview = ((node.content || '') + '').split('\n').slice(0, 2).join(' ⏎ ') || '(empty)';
+      const short = preview.length > 90 ? preview.slice(0, 87) + '…' : preview;
+      lines.push(`  📄 ${path}: ${short}`);
+    }
+    if (lines.length > 4) break;
+  }
+  return lines.join('\n');
+}
+function pushDiagnosis(hint, sh) {
+  pushTerm({ t:'note', s:`🔍 Grader is looking for: ${hint}\n${diagnose(sh, hint)}` });
+}
 function shortCwd() { return A.sh.cwd.replace('/home/student', '~'); }
 function runLine(line) {
   if (!line.trim()) { pushTerm({ t:'in', cwd: shortCwd(), s:'' }); paintTerm(); return; }
@@ -2217,14 +2283,28 @@ function runLine(line) {
   }
   const lab = el('cwdlab'); if (lab) lab.textContent = shortCwd();
 
-  // mission check
-  if (A.mission && !P.missions[A.mission.id]) {
+  // mission check — checks fire while a mission is unsolved OR being replayed
+  if (A.mission && (!P.missions[A.mission.id] || A.missRedo)) {
     A.missCmds++;
     let solved = false;
     try { solved = !!A.mission.check(A.sh, line); } catch {}
     if (solved) {
       const cmds = A.missCmds;
       const par = A.mission.par || 1;
+      if (A.missRedo) {
+        /* Practice run: don't overwrite the prior par record, don't award
+           XP or advance. Do give a small mastery bump so redoing weak
+           commands still helps the spaced-repetition weighting. */
+        const it = ITEM_BY_ID[A.mission.teach];
+        if (it) scoreAnswer(it.id, true);
+        pushTerm({ t:'note', s:`✓ Nice — got it again in ${cmds} command${cmds>1?'s':''}. (practice run — no XP)` });
+        A.missTries = 0; A.missCmds = 0; A.missRedo = false;
+        const nx = nextMission();
+        A.mission = nx;
+        save(); paintTerm(); render();
+        setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+        return;
+      }
       P.missions[A.mission.id] = { cmds, par };
       const it = ITEM_BY_ID[A.mission.teach];
       if (it) scoreAnswer(it.id, true);
@@ -2242,7 +2322,12 @@ function runLine(line) {
       return;
     }
     A.missTries++;
-    if (A.missTries === 3) { const h = el('hintbox'); if (h) h.innerHTML = `💡 ${esc(A.mission.hint)}`; A.missTries = 0; }
+    if (A.missTries === 3) {
+      const h = el('hintbox'); if (h) h.innerHTML = `💡 ${esc(A.mission.hint)}`;
+      pushDiagnosis(A.mission.hint, A.sh);
+      paintTerm();
+      A.missTries = 0;
+    }
   }
 
   // scenario check
@@ -2282,12 +2367,43 @@ function runLine(line) {
     }
   }
 
-  // lab step check
-  if (A.lab && A.lab.stepIdx < A.lab.data.steps.length) {
+  // lab step check — practice replay of an earlier step runs first, so it
+  // completes without touching the checklist or awarding XP
+  if (A.lab && A.labRedo != null) {
+    const lb = A.lab;
+    const step = lb.data.steps[A.labRedo];
+    let passed = false;
+    try { passed = !!step.check(A.sh, line); } catch {}
+    if (passed) {
+      const it = step.teach ? ITEM_BY_ID[step.teach] : null;
+      if (it) scoreAnswer(it.id, true);
+      pushTerm({ t:'note', s:`✓ Step re-solved for practice (no XP).` });
+      save();
+      A.labRedo = null;
+      paintTerm();
+      render();
+      setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
+      return;
+    }
+  }
+  if (A.lab && A.labRedo == null && A.lab.stepIdx < A.lab.data.steps.length) {
     const lb = A.lab;
     const step = lb.data.steps[lb.stepIdx];
     let passed = false;
     try { passed = !!step.check(A.sh, line); } catch {}
+    if (!passed) {
+      /* Track wrong attempts on THIS step; after 3, auto-reveal the hint
+         and diagnose. Reset whenever we advance to a new step. */
+      if (lb.tryCount == null || lb.tryStep !== lb.stepIdx) { lb.tryCount = 0; lb.tryStep = lb.stepIdx; }
+      lb.tryCount++;
+      if (lb.tryCount === 3) {
+        pushDiagnosis(step.hint, A.sh);
+        paintTerm();
+        const hintEl = el('labhintinline');
+        if (hintEl) { hintEl.hidden = false; lb.hintShown = true; }
+        lb.tryCount = 0;
+      }
+    }
     if (passed) {
       lb.stepIdx++;
       if (!P.labs[lb.data.id]) P.labs[lb.data.id] = { done: 0, complete: false };
@@ -2978,6 +3094,33 @@ function openChangelog() {
       () => window.prompt('Copy your progress:', JSON.stringify(P)));
   };
   d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
+}
+
+/* ---------------- reference card popover ---------------- */
+/* Pops the reference item for a mission/step's teach id in place, so the
+   learner can see the command definition + example + memory note without
+   losing terminal state by switching to the Reference tab. */
+function openRefCard(itemId) {
+  const it = ITEM_BY_ID[itemId];
+  if (!it) { toast('No reference card for this one yet.'); return; }
+  const existing = document.querySelector('.modal.refcard');
+  if (existing) existing.remove();
+  const b = (P.mastery[it.id] || {}).b || 0;
+  const bar = ['unseen','shaky','learning','solid','strong','mastered'][b];
+  const d = document.createElement('div');
+  d.className = 'modal refcard';
+  d.innerHTML = `<div class="inner">
+    <div class="refcard-cmd">${esc(it.cmd)}</div>
+    <p class="refcard-what">It ${esc(it.what)}.</p>
+    ${it.ex ? `<div class="refcard-line"><span class="refcard-lbl">Example</span><code>$ ${esc(it.ex)}</code></div>` : ''}
+    ${it.out ? `<div class="refcard-line"><span class="refcard-lbl">Sample output</span><pre>${esc(it.out)}</pre></div>` : ''}
+    ${it.note ? `<div class="refcard-line"><span class="refcard-lbl">Remember</span><span>${esc(it.note)}</span></div>` : ''}
+    <div class="refcard-mastery">${'█'.repeat(b)}${'░'.repeat(5-b)} ${esc(bar)}${it.lessonTitle ? ' · ' + esc(it.lessonTitle) : ''}</div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn primary" data-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('[data-close]').onclick = () => d.remove();
 }
 
 /* ---------------- shortcuts overlay ---------------- */

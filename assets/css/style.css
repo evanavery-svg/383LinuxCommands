@@ -354,6 +354,11 @@ code,.mono{font-family:var(--font)}
 .check-item{display:flex;align-items:baseline;gap:6px;font-size:12.5px;padding:3px 6px;border-radius:4px;color:var(--dim)}
 .check-item.passed{color:var(--good);font-weight:700}
 .check-item.active{color:var(--fg);font-weight:700}
+.check-item.clickable{cursor:pointer;transition:color .12s;border-radius:4px}
+.check-item.clickable:hover{color:var(--accent2);background:var(--bg2)}
+.check-item.redo{color:var(--accent2);font-weight:700}
+.check-item.redo .check-icon{color:var(--accent2)}
+.redo-tag{display:inline-block;font-size:10px;background:var(--accent2);color:var(--bg);padding:1px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:.6px;vertical-align:middle;margin-left:6px;font-weight:700}
 .check-icon{font-size:14px;flex-shrink:0}
 .lab-panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;max-height:56vh;display:flex;flex-direction:column}
 .lab-steps{overflow:auto;flex:1;min-height:0}
@@ -438,6 +443,16 @@ code,.mono{font-family:var(--font)}
   -webkit-overflow-scrolling:touch}
 .modal h2{margin:0 0 12px;color:var(--accent);font-size:17px}
 .modal.shortcuts h3{margin:14px 0 6px;font-size:12px;color:var(--accent2);text-transform:uppercase;letter-spacing:.5px}
+.modal.refcard .inner{max-width:520px}
+.refcard-cmd{font:15px var(--mono,'Menlo','Consolas',monospace);color:var(--accent);background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--line);margin-bottom:12px}
+.refcard-what{font-size:14px;color:var(--fg);margin:0 0 12px;line-height:1.5}
+.refcard-line{display:flex;flex-direction:column;gap:3px;margin:0 0 10px;font-size:13px}
+.refcard-lbl{font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:.4px}
+.refcard-line code{background:var(--bg2);padding:4px 8px;border-radius:4px;font:12.5px var(--mono,'Menlo','Consolas',monospace);color:var(--fg);border:1px solid var(--line);display:inline-block;width:fit-content;max-width:100%;overflow-x:auto}
+.refcard-line pre{background:var(--bg2);padding:6px 10px;border-radius:4px;font:12px var(--mono,'Menlo','Consolas',monospace);color:var(--dim);border:1px solid var(--line);margin:0;overflow-x:auto;max-width:100%;white-space:pre-wrap}
+.refcard-mastery{font:11.5px var(--mono,'Menlo','Consolas',monospace);color:var(--dim);letter-spacing:1px;border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.btn.refbtn{padding:0 8px;line-height:22px;height:22px;font-size:12px;background:transparent;border:1px solid var(--line);color:var(--dim);cursor:pointer;border-radius:4px;display:inline-flex;align-items:center;gap:3px}
+.btn.refbtn:hover{color:var(--accent);border-color:var(--accent)}
 .shortcuts-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .shortcuts-tbl td{padding:5px 6px;vertical-align:top;border-bottom:1px solid var(--line)}
 .shortcuts-tbl tr:last-child td{border-bottom:none}

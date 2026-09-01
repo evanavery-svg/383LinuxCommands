@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.29';
+const VERSION = '0.30';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.30', date:'2026-09-01', title:'Reference popover, redo mode, grader diagnosis',
+    notes:[
+      'Each mission and each active lab step now shows a "? cmd" button that pops the reference card (definition, example, memory note) in place — no more losing terminal state to look up a command.',
+      'Click any solved mission (or completed lab step) to enter practice mode: re-attempt for reinforcement without double-crediting XP. A visible "practice" tag and a "Back to current" button make it explicit.',
+      'After 3 wrong attempts on a mission or lab step, PATHfinder now prints a grader diagnosis: what the check is looking for, plus a snapshot of the current file/directory state it inspected.',
+      'Lab step hint auto-reveals inline after 3 wrong attempts, matching how missions already worked.',
+      'Every step in Lab 01 now carries a teach id linking it to the exact reference item, powering the popover.'
+    ] },
   { version:'0.29', date:'2026-09-01', title:'QoL: history, filter, shortcuts, safer reset',
     notes:[
       'Shell history now persists across sessions (like a real .bash_history) — ArrowUp finds yesterday\'s commands, capped at the last 200 lines.',
