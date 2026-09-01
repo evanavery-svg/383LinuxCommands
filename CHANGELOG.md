@@ -12,6 +12,18 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.29] — 2026-09-01
+
+### QoL: history, filter, shortcuts, safer reset
+
+- Shell history persists across sessions (like a real `.bash_history`). ArrowUp finds yesterday's commands, capped at 200 lines.
+- Typed-but-unsubmitted terminal input is autosaved, so a page refresh no longer loses your work-in-progress command.
+- Reset filesystem now shows a confirm dialog before wiping. Extra warning appears when a lab is active — that click also rewinds the checklist.
+- Mission list has a search box and an "unsolved only" toggle for browsing 85+ missions.
+- Press `?` anywhere to open a keyboard shortcut cheat sheet (terminal, navigation, vim).
+
+---
+
 ## [0.28] — 2026-09-01
 
 ### Lab checklist keeps the active step in view

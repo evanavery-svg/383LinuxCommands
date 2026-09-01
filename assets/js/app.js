@@ -46,6 +46,34 @@ function load() {
 }
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(P)); } catch {} }
 
+/* Shell history persists across sessions like a real .bash_history, capped
+   at 200 lines so localStorage never grows without bound. Kept in its own
+   key so a rare parse failure never blocks progress from loading. */
+const HIST_KEY = 'pathfinder.history';
+const DRAFT_KEY = 'pathfinder.draft';
+const HIST_MAX = 200;
+function loadHistory() {
+  try { const a = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); return Array.isArray(a) ? a.slice(-HIST_MAX) : []; } catch { return []; }
+}
+function saveHistory(h) {
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(-HIST_MAX))); } catch {}
+}
+function loadDraft() { try { return localStorage.getItem(DRAFT_KEY) || ''; } catch { return ''; } }
+function saveDraft(v) { try { v ? localStorage.setItem(DRAFT_KEY, v) : localStorage.removeItem(DRAFT_KEY); } catch {} }
+/* Preload a Shell with the persistent history so ArrowUp finds yesterday's
+   commands. Only touches the history array — never the filesystem — so it's
+   safe to call after a Reset or a fresh lab shell. */
+function hydrateShell(sh) { if (sh) sh.history = loadHistory(); return sh; }
+/* Wire the current terminal input to draft-persistence: restore any
+   in-flight text a refresh lost, and mirror new keystrokes into storage
+   (bounded by input length). Debounced by the input event itself. */
+function wireDraft(input) {
+  if (!input) return;
+  const saved = loadDraft();
+  if (saved && !input.value) input.value = saved;
+  input.addEventListener('input', () => saveDraft(input.value));
+}
+
 /* ---------------- sync helpers ---------------- */
 function downloadSave() {
   const blob = new Blob([JSON.stringify(P, null, 2)], { type:'application/json' });
@@ -1788,7 +1816,7 @@ function isearchKey(e, input) {
 function startScenario(id) {
   const sc = SCENARIOS.find(s => s.id === id);
   if (!sc) return;
-  const sh = new Shell();
+  const sh = hydrateShell(new Shell());
   sc.setup(sh);
   A.sh = sh;
   A.buffer = [];
@@ -1801,7 +1829,7 @@ function startScenario(id) {
 }
 function exitScenario() {
   A.scenario = null;
-  A.sh = new Shell();
+  A.sh = hydrateShell(new Shell());
   A.buffer = [];
   pushTerm({ t:'note', s:'Scenario exited. Filesystem restored.' });
   render();
@@ -1811,7 +1839,7 @@ function exitScenario() {
 function startLab(id) {
   const lab = LAB_BY_ID[id];
   if (!lab) return;
-  const sh = new Shell();
+  const sh = hydrateShell(new Shell());
   const saved = P.labs[id];
   const stepsDone = saved ? saved.done : 0;
   A.lab = { data: lab, sh, stepIdx: stepsDone, hintShown: false };
@@ -1831,7 +1859,7 @@ function startLab(id) {
 }
 function exitLab() {
   A.lab = null;
-  A.sh = new Shell();
+  A.sh = hydrateShell(new Shell());
   A.buffer = [];
   go('labs');
 }
@@ -1943,7 +1971,7 @@ function renderLabs(s) {
   s.querySelectorAll('[data-startlab]').forEach(b => b.onclick = () => startLab(b.dataset.startlab));
 }
 function renderLabTerminal(s) {
-  if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
+  if (!A.sh) { A.sh = hydrateShell(new Shell()); A.buffer = []; }
   const lb = A.lab;
   s.innerHTML = prompt('bash --login') + `
     <h1>Lab — ${esc(lb.data.title)}</h1>
@@ -1980,10 +2008,11 @@ function renderLabTerminal(s) {
   paintTerm();
   const input = el('tinput');
   input.focus();
+  wireDraft(input);
   input.onkeydown = e => {
     if (A.isearch) { if (isearchKey(e, input)) return; }
     if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); isearchStart(input); return; }
-    if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; }
+    if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; saveDraft(''); }
     else if (e.key === 'ArrowUp')   { e.preventDefault(); const h = A.sh.history; if (h.length) { A.histIdx = A.histIdx < 0 ? h.length-1 : Math.max(0, A.histIdx-1); input.value = h[A.histIdx]; } }
     else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }
     else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); A.buffer = []; paintTerm(); }
@@ -1997,7 +2026,11 @@ function renderLabTerminal(s) {
   }));
   s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
   s.querySelector('[data-resetfs]').onclick = () => {
-    A.sh = new Shell(); A.buffer = [];
+    const msg = A.lab
+      ? 'Reset the lab filesystem?\n\nThis wipes every file edit you made and rewinds the checklist back to step 1. There is no undo.'
+      : 'Reset the terminal filesystem?\n\nThis wipes every file you created or edited in this session.';
+    if (!confirm(msg)) return;
+    A.sh = hydrateShell(new Shell()); A.buffer = [];
     if (A.lab) { A.lab.sh = A.sh; A.lab.stepIdx = 0; if (P.labs[A.lab.data.id]) P.labs[A.lab.data.id].done = 0; save(); }
     pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus();
     render();
@@ -2016,7 +2049,7 @@ function renderLabTerminal(s) {
   if (activeStep) activeStep.scrollIntoView({ block: 'nearest' });
 }
 function renderTerminal(s) {
-  if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
+  if (!A.sh) { A.sh = hydrateShell(new Shell()); A.buffer = []; }
   const solved = TERM_MISSIONS.filter(mi => P.missions[mi.id]).length;
   const cur = A.mission || nextMission();
   A.mission = cur;
@@ -2058,10 +2091,15 @@ function renderTerminal(s) {
           <div class="bar" style="margin-top:10px"><i style="width:${solved/TERM_MISSIONS.length*100}%"></i></div>
           <div class="muted" style="font-size:11.5px;margin-top:6px">${solved}/${TERM_MISSIONS.length} solved</div>
           <button class="btn ghost sm listtoggle" data-listtoggle>Browse all ${TERM_MISSIONS.length} missions</button>
+          <div class="missfilter">
+            <input id="missfind" ${TYPING_ATTRS} placeholder="search missions…">
+            <label class="missonly"><input type="checkbox" id="missunsolved"> unsolved only</label>
+          </div>
           <div class="misslist">${TERM_MISSIONS.map((mi,i) => {
             const s = P.missions[mi.id]; const parTag = s && typeof s === 'object' ? ` <span class="partag${s.cmds<=s.par?' atpar':''}">${s.cmds}/${s.par}</span>` : '';
-            const hdr = (i === 0 || mi.tour !== TERM_MISSIONS[i-1].tour) ? `<div class="misstour">${esc(mi.tour)}</div>` : '';
-            return hdr + `<div class="${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}">
+            const hdr = (i === 0 || mi.tour !== TERM_MISSIONS[i-1].tour) ? `<div class="misstour" data-tour="${esc(mi.tour)}">${esc(mi.tour)}</div>` : '';
+            const hay = (mi.goal + ' ' + mi.tour + ' ' + (mi.teach||'')).toLowerCase();
+            return hdr + `<div class="missrow ${s?'done':''} ${cur&&cur.id===mi.id?'cur':''}" data-m="${mi.id}" data-hay="${esc(hay)}" data-solved="${s?1:0}">
             ${s?'✓':'·'} ${i+1}. ${esc(mi.goal.slice(0,48))}${mi.goal.length>48?'…':''}${parTag}</div>`;}).join('')}</div>
         </div>`}
       </div>
@@ -2076,10 +2114,11 @@ function renderTerminal(s) {
   paintTerm();
   const input = el('tinput');
   input.focus();
+  wireDraft(input);
   input.onkeydown = e => {
     if (A.isearch) { if (isearchKey(e, input)) return; }
     if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); isearchStart(input); return; }
-    if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; }
+    if (e.key === 'Enter') { e.preventDefault(); runLine(input.value); input.value = ''; A.histIdx = -1; saveDraft(''); }
     else if (e.key === 'ArrowUp')   { e.preventDefault(); const h = A.sh.history; if (h.length) { A.histIdx = A.histIdx < 0 ? h.length-1 : Math.max(0, A.histIdx-1); input.value = h[A.histIdx]; } }
     else if (e.key === 'ArrowDown') { e.preventDefault(); const h = A.sh.history; if (A.histIdx >= 0) { A.histIdx++; input.value = A.histIdx >= h.length ? (A.histIdx=-1, '') : h[A.histIdx]; } }
     else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); A.buffer = []; paintTerm(); }
@@ -2094,7 +2133,10 @@ function renderTerminal(s) {
     input.focus();
   }));
   s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
-  s.querySelector('[data-resetfs]').onclick = () => { A.sh = new Shell(); A.buffer = []; pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus(); };
+  s.querySelector('[data-resetfs]').onclick = () => {
+    if (!confirm('Reset the terminal filesystem?\n\nThis wipes every file you created or edited in this session.')) return;
+    A.sh = hydrateShell(new Shell()); A.buffer = []; pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus();
+  };
   s.querySelector('[data-skip]').onclick = () => { if (A.mission) { A.mission = nextMission(A.mission.id); A.missCmds = 0; render(); } };
   s.querySelector('[data-hint]').onclick = () => { const h = el('hintbox'); if (h && A.mission) h.innerHTML = `💡 ${esc(A.mission.hint)}`; input.focus(); };
   s.querySelector('[data-tree]').onclick = () => { A.showTree = !A.showTree; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
@@ -2125,6 +2167,31 @@ function renderTerminal(s) {
     box.classList.toggle('showlist');
     lt.textContent = box.classList.contains('showlist') ? 'Hide the mission list' : `Browse all ${TERM_MISSIONS.length} missions`;
   };
+  const find = el('missfind'), only = el('missunsolved');
+  const applyMissFilter = () => {
+    const q = (find?.value || '').trim().toLowerCase();
+    const onlyUnsolved = !!only?.checked;
+    const rows = s.querySelectorAll('.missrow');
+    const tourShown = new Set();
+    rows.forEach(r => {
+      const hay = r.dataset.hay || '';
+      const solved = r.dataset.solved === '1';
+      const match = (!q || hay.includes(q)) && (!onlyUnsolved || !solved);
+      r.hidden = !match;
+      if (match) {
+        const hdr = r.previousElementSibling;
+        if (hdr && hdr.classList.contains('misstour')) tourShown.add(hdr);
+        else {
+          let p = r.previousElementSibling;
+          while (p && !p.classList.contains('misstour')) p = p.previousElementSibling;
+          if (p) tourShown.add(p);
+        }
+      }
+    });
+    s.querySelectorAll('.misstour').forEach(t => { t.hidden = !tourShown.has(t); });
+  };
+  if (find) find.oninput = applyMissFilter;
+  if (only) only.onchange = applyMissFilter;
 }
 const LAB_IDS = new Set(LABS.map(l => l.id));
 const TERM_MISSIONS = MISSIONS.filter(mi => {
@@ -2142,6 +2209,8 @@ function runLine(line) {
   if (!line.trim()) { pushTerm({ t:'in', cwd: shortCwd(), s:'' }); paintTerm(); return; }
   pushTerm({ t:'in', cwd: shortCwd(), s: line });
   const res = A.sh.run(line);
+  saveHistory(A.sh.history);
+  saveDraft('');
   for (const r of res) {
     if (r.t === 'clear' || r.t === 'reset') { A.buffer = []; if (r.t === 'reset') pushTerm({ t:'note', s:'Terminal settings restored.' }); continue; }
     pushTerm(r);
@@ -2911,6 +2980,47 @@ function openChangelog() {
   d.querySelector('[data-wipe]').onclick = () => { d.remove(); confirmWipe(); };
 }
 
+/* ---------------- shortcuts overlay ---------------- */
+const SHORTCUTS = [
+  { section:'Terminal & labs', items:[
+    { keys:['↑','↓'], desc:'Walk through recent commands (persists across sessions)' },
+    { keys:['Tab'], desc:'Autocomplete file/directory names' },
+    { keys:['Ctrl','R'], desc:'Reverse-i-search through history' },
+    { keys:['Ctrl','L'], desc:'Clear the terminal buffer' },
+    { keys:['Enter'], desc:'Run the current command' }
+  ]},
+  { section:'Navigation', items:[
+    { keys:['1','–','7'], desc:'Jump to Home / Learn / Drill / Terminal / Labs / Reference / Progress' },
+    { keys:['Esc'], desc:'Close modal, exit quiz, or back to Home' },
+    { keys:['?'], desc:'Show this help' }
+  ]},
+  { section:'Vim (in the terminal)', items:[
+    { keys:['i','a','A','o','O'], desc:'Enter insert mode' },
+    { keys:['Esc'], desc:'Return to normal mode' },
+    { keys:['dd','x','J','r'], desc:'Delete line, delete char, join lines, replace char' },
+    { keys:[':w',':q',':wq',':q!'], desc:'Write, quit, write+quit, force quit' }
+  ]}
+];
+function openShortcuts() {
+  if (document.querySelector('.modal.shortcuts')) return;
+  const d = document.createElement('div');
+  d.className = 'modal shortcuts';
+  d.innerHTML = `<div class="inner">
+    <h2>Keyboard shortcuts</h2>
+    <p class="muted" style="font-size:12.5px;margin-top:-6px">Press <kbd>?</kbd> anywhere to reopen this. Press <kbd>Esc</kbd> to close.</p>
+    ${SHORTCUTS.map(sec => `
+      <h3>${esc(sec.section)}</h3>
+      <table class="shortcuts-tbl">${sec.items.map(it =>
+        `<tr><td class="sk">${it.keys.map(k => `<kbd>${esc(k)}</kbd>`).join(' ')}</td><td>${esc(it.desc)}</td></tr>`
+      ).join('')}</table>
+    `).join('')}
+    <div class="row" style="margin-top:14px"><button class="btn primary" data-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('[data-close]').onclick = () => d.remove();
+}
+
 /* ---------------- keyboard ---------------- */
 document.addEventListener('keydown', e => {
   if (e.repeat) return;             // holding a key must not fire it over and over
@@ -2932,6 +3042,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (typing) return;
+  if (e.key === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); openShortcuts(); return; }
   if (e.key === 'Enter') {
     if (onButton) return;
     const n = el('qnext')

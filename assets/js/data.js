@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.28';
+const VERSION = '0.29';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.29', date:'2026-09-01', title:'QoL: history, filter, shortcuts, safer reset',
+    notes:[
+      'Shell history now persists across sessions (like a real .bash_history) — ArrowUp finds yesterday\'s commands, capped at the last 200 lines.',
+      'Typed-but-unsubmitted terminal input is autosaved, so a page refresh no longer loses what you were mid-composing.',
+      'Reset filesystem now shows a confirm dialog before wiping — with an extra warning about losing checklist progress when a lab is active.',
+      'Mission list has a search box and an "unsolved only" toggle to make finding specific practice topics easy across 85+ missions.',
+      'Press ? anywhere to open a keyboard shortcut cheat sheet covering terminal, navigation, and vim.'
+    ] },
   { version:'0.28', date:'2026-09-01', title:'Lab checklist keeps the active step in view',
     notes:[
       'Fixed: completing a lab step reset the checklist scroll to the top, forcing you to scroll back down to see the current step every time.',
