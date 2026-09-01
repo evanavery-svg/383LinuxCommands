@@ -12,6 +12,17 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.31] — 2026-09-01
+
+### Lab resume, live file preview, explain-on-run
+
+- Labs save their full filesystem state on exit. Leave mid-lab and your file edits, cwd, and step progress come back exactly where you left them. Snapshot taken on every completed step, so a browser crash cannot lose more than one step of work.
+- Two clear lab controls: **Exit lab (resume later)** preserves state; **Restart lab** (with confirm) wipes back to a fresh checklist.
+- Live file inspector: a small preview pane in the lab sidebar shows the current contents of the file the active step is editing, refreshing after each command. No more re-catting to see if a sed landed. Toggle-off if not wanted.
+- Explain-what-happened: after each command, a dim italic one-liner translates it in plain English (e.g. `sed: stream editor · in-place substitute · overwrite file.txt`). Covers 40+ core commands, their common flags, pipes, and redirects. Toggle in Settings → Terminal.
+
+---
+
 ## [0.30] — 2026-09-01
 
 ### Reference popover, redo mode, grader diagnosis

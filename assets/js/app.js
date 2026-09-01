@@ -18,7 +18,7 @@ const DEFAULTS = {
   chunks: {},               // legacy set-completion marks, kept so old saves still read
   reviews: {},              // category id -> best score on that topic's review round
   bestCombo: 0, perfects: 0, goal: 100,
-  settings: { theme:'matrix', crt:true, bite:3, freeroam:true, briefs:true }
+  settings: { theme:'matrix', crt:true, bite:3, freeroam:true, briefs:true, explain:true }
 };
 
 let P = load();
@@ -464,6 +464,7 @@ const A = {
   missCmds: 0,
   missRedo: false,      // when true, current mission is a practice replay — no XP, no advance
   labRedo: null,        // when set, holds the step index being re-attempted for practice
+  labWatchFile: true,   // sidebar live-preview of the file the active step is about
   histIdx: -1,
   combo: 0,
   exam: null,
@@ -1844,6 +1845,15 @@ function startLab(id) {
   const sh = hydrateShell(new Shell());
   const saved = P.labs[id];
   const stepsDone = saved ? saved.done : 0;
+  /* Restore a prior in-flight lab's filesystem so pause/resume actually
+     works. Guarded so a shape mismatch never crashes the lab open. */
+  if (saved && saved.fs) {
+    try {
+      sh.root = JSON.parse(JSON.stringify(saved.fs));
+      if (saved.cwd) sh.cwd = saved.cwd;
+      if (saved.prev) sh.prev = saved.prev;
+    } catch { /* fall through with fresh root */ }
+  }
   A.lab = { data: lab, sh, stepIdx: stepsDone, hintShown: false };
   A.sh = sh;
   A.buffer = [];
@@ -1859,12 +1869,62 @@ function startLab(id) {
   go('labs');
   setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30);
 }
+function snapshotLabFs() {
+  if (!A.lab || !A.sh) return;
+  const id = A.lab.data.id;
+  if (!P.labs[id]) P.labs[id] = { done: A.lab.stepIdx, complete: false };
+  /* Serialize the whole tree — cheap (a few KB), and dodges any need to
+     track individual file writes. cwd/prev come along so a resumed lab
+     starts exactly where the user left off. */
+  try { P.labs[id].fs = JSON.parse(JSON.stringify(A.sh.root)); } catch {}
+  P.labs[id].cwd = A.sh.cwd;
+  P.labs[id].prev = A.sh.prev;
+}
 function exitLab() {
+  snapshotLabFs();
+  save();
   A.lab = null;
   A.labRedo = null;
   A.sh = hydrateShell(new Shell());
   A.buffer = [];
   go('labs');
+}
+function restartLab() {
+  if (!A.lab) return;
+  const id = A.lab.data.id;
+  if (P.labs[id]) { P.labs[id].fs = null; P.labs[id].cwd = null; P.labs[id].prev = null; P.labs[id].done = 0; P.labs[id].complete = false; }
+  save();
+  A.sh = hydrateShell(new Shell());
+  A.buffer = [];
+  A.lab.sh = A.sh;
+  A.lab.stepIdx = 0;
+  A.lab.hintShown = false;
+  A.labRedo = null;
+  pushTerm({ t:'note', s:'Lab restarted from scratch.' });
+  paintTerm();
+  render();
+}
+/* Look at the step's hint and check() body for a filename this step is
+   about. Best-effort — used to power the live file inspector so learners
+   can watch their edits land without re-catting after every command. */
+function stepWatchFile(step, sh) {
+  const bag = [step.hint || '', String(step.check || '')];
+  const seen = new Set();
+  for (const s of bag) {
+    const re = /['"]?([\/\w][\w.\-/]*\.[\w]+)['"]?/g;
+    let m;
+    while ((m = re.exec(s))) {
+      const t = m[1];
+      if (seen.has(t)) continue;
+      seen.add(t);
+      try {
+        const p = sh.norm(sh.expand(t));
+        const n = sh.node(p);
+        if (n && n.type === 'file') return { path: p, node: n };
+      } catch {}
+    }
+  }
+  return null;
 }
 function renderLabPanel() {
   const lb = A.lab;
@@ -1903,12 +1963,26 @@ function renderLabPanel() {
       stepsHtml += `<div class="lab-hint" style="color:var(--dim);border-left-color:var(--dim)">Practice run — no XP, just reinforcement. <button class="btn ghost sm" data-endredostep>Back to current</button></div>`;
     }
   }
+  /* Live inspector: which file (if any) is this step about? Only shown
+     when the user opts in — it takes vertical space in the sidebar. */
+  const focusStep = redoIdx != null ? d.steps[redoIdx] : d.steps[Math.min(cur, total - 1)];
+  const watched = A.labWatchFile !== false && focusStep && lb.sh ? stepWatchFile(focusStep, lb.sh) : null;
+  const watchHtml = watched ? `
+    <div class="lab-watch">
+      <div class="lab-watch-hdr">
+        <span>📄 ${esc(watched.path.replace('/home/student/', '~/'))}</span>
+        <button class="btn ghost sm" data-watchoff title="Hide the file preview">hide</button>
+      </div>
+      <pre class="lab-watch-body">${esc(watched.node.content || '(empty)')}</pre>
+    </div>` : (A.labWatchFile === false ? `
+    <div class="lab-watch off"><button class="btn ghost sm" data-watchon>Show file preview</button></div>` : '');
   return `<div class="lab-panel" id="labpanel">
     <h3>${esc(d.title)}</h3>
     <p class="muted" style="font-size:12px;margin:4px 0 10px">${esc(d.subtitle)}</p>
     <div class="bar" style="margin-bottom:8px"><i style="width:${pct}%"></i></div>
     <div class="muted" style="font-size:11.5px;margin-bottom:10px">Step ${Math.min(cur + 1, total)} of ${total}</div>
     <div class="lab-steps"><div class="check-list">${stepsHtml}</div></div>
+    ${watchHtml}
     ${allDone ? '<div class="note" style="margin-top:10px;color:var(--good);font-weight:700">Lab complete!</div>' : ''}
     <div class="row" style="margin-top:12px;flex-shrink:0">
       ${!allDone ? '<button class="btn ghost sm" data-lhint>Hint</button>' : ''}
@@ -1997,9 +2071,9 @@ function renderLabTerminal(s) {
           `<button class="keycap${k.w ? ' wide' : ''}" data-k="${esc(k.ins)}">${esc(k.label || k.ins)}</button>`).join('')}</div>
         <div class="row" style="margin-top:8px">
           <button class="btn ghost sm" data-clear>Clear screen</button>
-          <button class="btn ghost sm" data-resetfs>Reset filesystem</button>
+          <button class="btn ghost sm" data-labrestart>Restart lab</button>
           <button class="btn ghost sm" data-tree>${A.showTree ? 'Lab steps' : 'File tree'}</button>
-          <button class="btn ghost sm" data-lexit>Exit lab</button>
+          <button class="btn ghost sm" data-lexit>Exit lab (resume later)</button>
         </div>
       </div>
       <div>
@@ -2037,15 +2111,11 @@ function renderLabTerminal(s) {
     input.focus();
   }));
   s.querySelector('[data-clear]').onclick = () => { A.buffer = []; paintTerm(); input.focus(); };
-  s.querySelector('[data-resetfs]').onclick = () => {
-    const msg = A.lab
-      ? 'Reset the lab filesystem?\n\nThis wipes every file edit you made and rewinds the checklist back to step 1. There is no undo.'
-      : 'Reset the terminal filesystem?\n\nThis wipes every file you created or edited in this session.';
-    if (!confirm(msg)) return;
-    A.sh = hydrateShell(new Shell()); A.buffer = [];
-    if (A.lab) { A.lab.sh = A.sh; A.lab.stepIdx = 0; if (P.labs[A.lab.data.id]) P.labs[A.lab.data.id].done = 0; save(); }
-    pushTerm({t:'note',s:'Filesystem restored to its original state.'}); paintTerm(); input.focus();
-    render();
+  const restartBtn = s.querySelector('[data-labrestart]');
+  if (restartBtn) restartBtn.onclick = () => {
+    if (!confirm('Restart the lab from scratch?\n\nThis wipes every file edit you made and rewinds the checklist back to step 1. There is no undo.')) return;
+    restartLab();
+    input.focus();
   };
   s.querySelector('[data-tree]').onclick = () => { A.showTree = !A.showTree; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
   s.querySelectorAll('[data-lexit]').forEach(b => b.onclick = () => exitLab());
@@ -2067,6 +2137,10 @@ function renderLabTerminal(s) {
   });
   const endrs = s.querySelector('[data-endredostep]');
   if (endrs) endrs.onclick = () => { A.labRedo = null; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  const wOff = s.querySelector('[data-watchoff]');
+  if (wOff) wOff.onclick = () => { A.labWatchFile = false; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
+  const wOn = s.querySelector('[data-watchon]');
+  if (wOn) wOn.onclick = () => { A.labWatchFile = true; render(); setTimeout(() => { const i2 = el('tinput'); if (i2) i2.focus(); }, 30); };
   const activeStep = s.querySelector('.check-item.active');
   if (activeStep) activeStep.scrollIntoView({ block: 'nearest' });
 }
@@ -2240,6 +2314,98 @@ function nextMission(afterId) {
 }
 function pushTerm(o) { A.buffer.push(o); }
 
+/* Translate the command a learner just typed into a plain-English one-liner.
+   Rules-based on purpose: covers the ~30 commands the curriculum actually
+   uses; every other command falls through to just the command name.
+   Kept small and dumb — a bigger parser would need real shell grammar. */
+const CMD_EXPLAIN = {
+  pwd: { d:'print working directory' },
+  whoami: { d:'print current user' },
+  id: { d:'print user and group IDs' },
+  hostname: { d:'print machine name' },
+  date: { d:'print current date/time' },
+  clear: { d:'clear the screen' },
+  history: { d:'list previous commands' },
+  ls: { d:'list directory contents', f:{ l:'long format', a:'include dotfiles', A:'include dotfiles (not . ..)', h:'human sizes', t:'sort by time', r:'reverse order', F:'mark file types', R:'recursive', S:'sort by size', d:'directory itself, not contents' } },
+  cd: { d:'change directory' },
+  cat: { d:'print file contents' },
+  head: { d:'print first N lines', f:{ n:'line count' } },
+  tail: { d:'print last N lines', f:{ n:'line count', f:'follow appends' } },
+  less: { d:'page through a file' },
+  more: { d:'page through a file' },
+  wc: { d:'count lines/words/bytes', f:{ l:'lines only', w:'words only', c:'bytes only' } },
+  file: { d:'guess file type' },
+  cp: { d:'copy files', f:{ r:'recursive (for directories)', R:'recursive', v:'verbose', i:'prompt before overwrite', p:'preserve attributes' } },
+  mv: { d:'move/rename', f:{ v:'verbose', i:'prompt before overwrite' } },
+  rm: { d:'delete files', f:{ r:'recursive', R:'recursive', f:'force, no prompts', v:'verbose', i:'prompt before each' } },
+  rmdir: { d:'delete empty directories' },
+  mkdir: { d:'create directories', f:{ p:'create parents as needed', v:'verbose' } },
+  ln: { d:'create link', f:{ s:'symbolic link', f:'force' } },
+  touch: { d:'update timestamps or create empty file' },
+  chmod: { d:'change file permissions', f:{ R:'recursive', v:'verbose' } },
+  chown: { d:'change file owner', f:{ R:'recursive' } },
+  grep: { d:'search for a pattern', f:{ i:'case-insensitive', n:'show line numbers', v:'invert (non-matching)', r:'recursive', E:'extended regex', c:'count matches', l:'list matching files' } },
+  sed: { d:'stream editor', f:{ i:'edit files in place', n:'suppress default print', E:'extended regex' } },
+  awk: { d:'pattern-driven text processor' },
+  find: { d:'walk a tree and match files' },
+  sort: { d:'sort lines', f:{ r:'reverse', n:'numeric', u:'unique' } },
+  uniq: { d:'collapse repeated adjacent lines', f:{ c:'count', d:'only duplicates' } },
+  tr: { d:'translate or delete characters', f:{ d:'delete', s:'squeeze repeats' } },
+  cut: { d:'extract columns', f:{ d:'delimiter', f:'fields' } },
+  xargs: { d:'build commands from stdin' },
+  echo: { d:'print a message' },
+  printf: { d:'formatted print' },
+  env: { d:'print environment variables' },
+  export: { d:'export a shell variable' },
+  ps: { d:'list processes', f:{ a:'all users', u:'user format', x:'without controlling tty' } },
+  top: { d:'live process view' },
+  htop: { d:'live process view (nicer)' },
+  kill: { d:'send signal to a process' },
+  jobs: { d:'list background jobs' },
+  bg: { d:'resume in background' },
+  fg: { d:'bring to foreground' },
+  vim: { d:'open in the vim editor' },
+  vi: { d:'open in the vim editor' },
+  nano: { d:'open in the nano editor' },
+  man: { d:'read the manual page' },
+  which: { d:'find a command\'s path' },
+  alias: { d:'set or list command aliases' },
+  unalias: { d:'remove an alias' },
+  git: { d:'run a git subcommand' }
+};
+function explainCommand(line) {
+  const raw = (line || '').trim();
+  if (!raw) return '';
+  /* Split on top-level pipes so each stage explains itself, then rejoin. */
+  const stages = raw.split(/\s*\|\s*/).map(seg => {
+    /* Peel off a trailing redirect so we can mention it. */
+    let redir = '';
+    const rMatch = seg.match(/\s+(>>|>|<)\s*(\S+)\s*$/);
+    if (rMatch) { redir = rMatch[0]; seg = seg.slice(0, -redir.length); }
+    const toks = seg.trim().split(/\s+/);
+    let cmd = toks[0] || '';
+    /* Executed local script (./foo.sh) — surface that plainly. */
+    if (/^\.\//.test(cmd)) return `run script ${cmd.slice(2)}` + (redir ? ' ' + redir.trim() : '');
+    const spec = CMD_EXPLAIN[cmd];
+    if (!spec) return cmd + (redir ? ' (' + redir.trim() + ')' : '');
+    const flags = [];
+    for (const t of toks.slice(1)) {
+      if (t.startsWith('--')) { flags.push(t); continue; }
+      if (/^-[A-Za-z]+$/.test(t)) {
+        for (const ch of t.slice(1)) if (spec.f && spec.f[ch]) flags.push(spec.f[ch]);
+      }
+    }
+    const flagPart = flags.length ? ' · ' + flags.join(', ') : '';
+    let extra = '';
+    if (redir) {
+      const [, op, tgt] = rMatch;
+      extra = op === '>' ? ` · overwrite ${tgt}` : op === '>>' ? ` · append to ${tgt}` : ` · read from ${tgt}`;
+    }
+    return `${cmd}: ${spec.d}${flagPart}${extra}`;
+  });
+  return stages.join(' → ');
+}
+
 /* After N failed attempts, tell the learner what the checker is really
    looking for and what state it currently sees. Beats silent rejection. */
 function diagnose(sh, hint) {
@@ -2274,6 +2440,10 @@ function shortCwd() { return A.sh.cwd.replace('/home/student', '~'); }
 function runLine(line) {
   if (!line.trim()) { pushTerm({ t:'in', cwd: shortCwd(), s:'' }); paintTerm(); return; }
   pushTerm({ t:'in', cwd: shortCwd(), s: line });
+  if (P.settings.explain !== false) {
+    const exp = explainCommand(line);
+    if (exp) pushTerm({ t:'explain', s: exp });
+  }
   const res = A.sh.run(line);
   saveHistory(A.sh.history);
   saveDraft('');
@@ -2422,6 +2592,7 @@ function runLine(line) {
         const next = lb.data.steps[lb.stepIdx];
         const secMsg = next.section && next.section !== step.section ? `  [${next.section}]` : '';
         pushTerm({ t:'note', s:`✓ Step ${lb.stepIdx}/${total}${secMsg}` });
+        snapshotLabFs();
         save();
       }
       lb.hintShown = false;
@@ -2442,6 +2613,7 @@ function paintTerm() {
       case 'in':   return `<div class="l in"><span class="ps">[student@fedora <span class="pth">${esc(o.cwd)}</span>]$</span> <span class="c${o.s ? ' explainable' : ''}"${o.s ? ` data-explain="${esc(o.s)}"` : ''}>${esc(o.s)}</span></div>`;
       case 'err':  return `<div class="l err">${esc(o.s)}</div>`;
       case 'note': return `<div class="l note">${esc(o.s)}</div>`;
+      case 'explain': return `<div class="l explain">↳ ${esc(o.s)}</div>`;
       case 'pager':return `<div class="l"><span class="pager">${esc(o.s)}</span></div>`;
       case 'garbage': return `<div class="l garbage">^@^H&lt;9f&gt;ELF^B^A^A^@&lt;fe&gt;^C&gt;^@^A^@^@&lt;c0&gt;^E^@^@&lt;bf&gt;@^@8^@^M^@@^@^^</div>`;
       case 'ls':   return `<div class="l nw">${esc(o.s)}<span class="${o.kind==='dir'?'d':o.kind==='link'?'ln':o.exec?'x':''}">${esc(o.name)}</span></div>`;
@@ -2993,6 +3165,9 @@ function openSettings() {
       worked example of when you would use them. Turn it off to go straight to the cards.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Display</h3>
     <div class="row"><button class="chip ${P.settings.crt?'on':''}" data-crt>CRT scanlines: ${P.settings.crt?'on':'off'}</button></div>
+    <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Terminal</h3>
+    <div class="row"><button class="chip ${P.settings.explain!==false?'on':''}" data-explain>Explain commands: ${P.settings.explain!==false?'on':'off'}</button></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">After each command, print a dim one-liner translating what it does. Great while learning; turn off once flags are second nature.</p>
     <h3 style="font-size:13px;color:var(--dim);margin:18px 0 6px">Your progress</h3>
     <p class="muted" style="font-size:12px;margin:0 0 8px">
       ${learnedCount()} cards learned · ${P.xp} XP · ${missionCount()} missions · ${Object.keys(P.badges).length} badges.
@@ -3020,6 +3195,7 @@ function openSettings() {
   d.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { P.goal = +b.dataset.goal; save(); d.remove(); openSettings(); render(); });
   d.querySelector('[data-briefs]').onclick = () => { P.settings.briefs = P.settings.briefs === false; save(); d.remove(); openSettings(); render(); };
   d.querySelector('[data-crt]').onclick = () => { P.settings.crt = !P.settings.crt; save(); applySettings(); d.remove(); openSettings(); };
+  d.querySelector('[data-explain]').onclick = () => { P.settings.explain = P.settings.explain === false; save(); d.remove(); openSettings(); };
   d.querySelector('[data-changelog]').onclick = () => { d.remove(); openChangelog(); };
   d.querySelector('[data-close]').onclick = () => d.remove();
   d.querySelector('[data-export2]').onclick = () => {

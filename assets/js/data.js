@@ -20,12 +20,20 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.30';
+const VERSION = '0.31';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.31', date:'2026-09-01', title:'Lab resume, live file preview, explain-on-run',
+    notes:[
+      'Labs now save your filesystem state on exit — leave mid-lab and your file edits, cwd, and step progress all come back exactly where you left them. Snapshot is taken on every completed step, so a browser crash cannot lose more than one step of work.',
+      'Two clear lab controls: "Exit lab (resume later)" preserves state, "Restart lab" (with a confirm) wipes back to a fresh checklist.',
+      'Live file inspector: a small preview pane in the lab sidebar shows the current contents of the file the active step is editing, refreshing after each command — no more re-catting to see if a sed landed. Toggle-off if not wanted.',
+      'Explain-what-happened: after each command, a dim italic one-liner translates it into plain English ("sed: stream editor · in-place substitute · overwrite file.txt"). Covers 40+ core commands and their common flags, plus pipes and redirects. Toggle in Settings → Terminal.',
+      'The reference cards for pipe (|) and redirect (>) are now surfaced through the explainer inline.'
+    ] },
   { version:'0.30', date:'2026-09-01', title:'Reference popover, redo mode, grader diagnosis',
     notes:[
       'Each mission and each active lab step now shows a "? cmd" button that pops the reference card (definition, example, memory note) in place — no more losing terminal state to look up a command.',

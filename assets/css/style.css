@@ -305,6 +305,7 @@ code,.mono{font-family:var(--font)}
 #term .in .c{color:var(--fg)}
 #term .err{color:var(--bad)}
 #term .note{color:var(--warn)}
+#term .explain{color:var(--dim);font-size:12px;font-style:italic;padding-left:1.2em;opacity:.85}
 #term .pager{color:var(--bg);background:var(--fg);display:inline-block;padding:0 6px}
 #term .garbage{color:var(--bad);letter-spacing:2px;filter:blur(.3px)}
 #term .d{color:var(--accent2);font-weight:700}
@@ -365,6 +366,12 @@ code,.mono{font-family:var(--font)}
 .lab-panel h3{margin:0 0 4px;font-size:13px;color:var(--accent2);letter-spacing:.6px;text-transform:uppercase}
 .lab-section{font-size:11.5px;font-weight:700;color:var(--accent2);margin:10px 0 4px;letter-spacing:.4px;text-transform:uppercase}
 .lab-hint{padding:4px 8px 4px 28px;font-size:12px;color:var(--accent);border-left:2px solid var(--accent);margin:2px 0 4px}
+.lab-watch{margin:10px 0 0;border:1px solid var(--line);border-radius:6px;background:var(--bg2);flex-shrink:0;overflow:hidden}
+.lab-watch-hdr{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg);font:11.5px var(--mono,'Menlo','Consolas',monospace);color:var(--accent2);border-bottom:1px solid var(--line)}
+.lab-watch-hdr .btn{padding:0 6px;height:20px;line-height:20px;font-size:11px}
+.lab-watch-body{margin:0;padding:6px 8px;font:11.5px var(--mono,'Menlo','Consolas',monospace);color:var(--fg);max-height:120px;overflow:auto;white-space:pre;line-height:1.35}
+.lab-watch.off{padding:4px;text-align:center}
+.lab-watch.off .btn{width:100%}
 .lab-hint code{background:var(--bg2);padding:2px 6px;border-radius:3px;font-size:12px}
 .sc-card{padding:8px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
 .sc-card:hover{border-color:var(--accent)}
