@@ -12,6 +12,17 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.32] — 2026-09-01
+
+### Fill in the 6 missing reference cards
+
+- Added reference cards for the six commands Lab 01 teaches that were missing from the Reference tab: `grep`, `sed`, `sed -i`, `pipe (|)`, `redirect (>)`, `printf`, and running an executable script (`./name.sh`).
+- The reference popover on lab steps now works for every one of Lab 01's 18 steps — previously six steps silently had no card to show.
+- New lesson **Searching & editing text** (grep + sed) and **Pipes, redirects, and running scripts** under the Lab 01 topic.
+- These items now feed into drills, spaced repetition, and the study guide.
+
+---
+
 ## [0.31] — 2026-09-01
 
 ### Lab resume, live file preview, explain-on-run

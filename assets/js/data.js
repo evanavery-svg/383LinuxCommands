@@ -20,12 +20,19 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.31';
+const VERSION = '0.32';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.32', date:'2026-09-01', title:'Fill in the 6 missing reference cards',
+    notes:[
+      'Added reference cards for the six commands Lab 01 teaches that were missing from the reference tab: grep, sed, sed -i, pipe (|), redirect (>), printf, and running an executable script (./name.sh).',
+      'The reference popover on lab steps now works for every one of Lab 01\'s 18 steps — before, six steps silently had no card to show.',
+      'Added a new "Searching & editing text" lesson under the Lab 01 topic covering grep and sed, and "Pipes, redirects, and running scripts" covering the flow-control basics.',
+      'These items now feed into drills, spaced repetition, and the study guide too.'
+    ] },
   { version:'0.31', date:'2026-09-01', title:'Lab resume, live file preview, explain-on-run',
     notes:[
       'Labs now save your filesystem state on exit — leave mid-lab and your file edits, cwd, and step progress all come back exactly where you left them. Snapshot is taken on every completed step, so a browser crash cannot lose more than one step of work.',
@@ -1375,7 +1382,55 @@ const CURRICULUM = [
 {
   mod: 1, id:'lab01', name:'Lab 01', icon:'📋',
   blurb:'A simulated lab assignment: fix scripts, edit configs, run pipelines, and build reports.',
-  lessons:[]
+  lessons:[
+    {
+      id:'lab01_search', title:'Searching & editing text',
+      brief:'<b>grep</b> finds lines that match a pattern. <b>sed</b> transforms text as it streams past.',
+      use: {
+        scene: "You need to find every line in a config that mentions the port, then change 3000 to 8080 without opening an editor.",
+        lines: [{ c:"grep port network.conf", o:"port=3000" },
+               { c:"sed -i 's/3000/8080/' network.conf" },
+               { c:"grep port network.conf", o:"port=8080" }],
+        point: "grep is the shell's find-in-file. sed is a stream editor — it reads, transforms, and writes. With -i it edits the file in place; without -i it just prints to stdout."
+      },
+      items:[
+        { id:'grep', cmd:'grep', what:'searches a file for lines matching a pattern',
+          ex:'grep port network.conf', out:'port=3000',
+          note:'g/re/p — Global search, Regular Expression, Print. -i case-insensitive, -n show line numbers, -v invert, -r recursive.' },
+        { id:'sed', cmd:'sed', what:'is a stream editor that reads text, transforms it, and writes the result',
+          ex:"sed 's/old/new/' file.txt",
+          note:"By default sed only replaces the FIRST match on each line. Add g at the end (s/old/new/g) to replace every match." },
+        { id:'sed_i', cmd:'sed -i', what:'edits a file in place rather than printing the result to stdout',
+          ex:"sed -i 's/bsh/bash/' broken_backup.sh",
+          note:'-i writes changes back into the file. Add a backup with -i.bak to keep the original as file.bak.' }
+      ]
+    },
+    {
+      id:'lab01_flow', title:'Pipes, redirects, and running scripts',
+      brief:'<b>|</b> feeds one command\'s output into the next. <b>&gt;</b> writes output to a file. <b>./script.sh</b> runs an executable script.',
+      use: {
+        scene: "You want to count how many entries /var/log has, save a system report to a file, and execute a shell script you just chmod-ed.",
+        lines: [{ c:"ls /var/log | wc -l", o:"12" },
+               { c:"./sysinfo.sh > report.txt" },
+               { c:"printf 'User: %s\\n' \"$(whoami)\"", o:"User: student" }],
+        point: "The pipe glues commands together, > directs output to a file (overwriting; >> appends), and ./name runs the script in the current directory — Linux won't check . in your PATH by default, hence the leading dot."
+      },
+      items:[
+        { id:'pipe', cmd:'|', what:'connects the standard output of one command to the standard input of the next', kind:'key',
+          ex:'ls /var/log | wc -l', ans:['|','pipe'],
+          note:'Read left to right: "list /var/log, THEN pipe THAT into wc -l". Any number of pipes can chain: cmd1 | cmd2 | cmd3.' },
+        { id:'redir', cmd:'>', what:'redirects the standard output of a command into a file, replacing anything already there', kind:'opt',
+          ex:"echo 'hello' > note.txt", ans:['>','redirect','>>'],
+          note:'> overwrites; >> appends. Nothing is printed to the screen when you redirect — the output goes into the file instead.' },
+        { id:'printf', cmd:'printf', what:'prints formatted text using placeholders like %s and %d',
+          ex:'printf \'User: %s\\n\' "$(whoami)"', out:'User: student',
+          note:'Unlike echo, printf never adds a newline for you — put \\n in the format string when you need one. More predictable than echo across shells.' },
+        { id:'script', cmd:'./script.sh', what:'runs an executable script located in the current directory', kind:'opt',
+          ex:'./backup.sh', ans:['./script.sh','./name.sh','./x.sh'],
+          note:'The ./ tells the shell "look right here". Without it, the shell searches $PATH — which does not include your current directory for security reasons. The file must also be executable (chmod u+x).' }
+      ]
+    }
+  ]
 },
 /* ================================================================
    MODULE 2 — Version Control with Git
