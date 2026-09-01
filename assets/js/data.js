@@ -20,12 +20,17 @@
      4. add a CHANGELOG entry at the top and bump VERSION
    ===================================================================== */
 
-const VERSION = '0.27';
+const VERSION = '0.28';
 const COPYRIGHT_HOLDER = 'Avery LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
 const CHANGELOG = [
+  { version:'0.28', date:'2026-09-01', title:'Lab checklist keeps the active step in view',
+    notes:[
+      'Fixed: completing a lab step reset the checklist scroll to the top, forcing you to scroll back down to see the current step every time.',
+      'The checklist now auto-scrolls so the active step stays visible after each step is checked off.'
+    ] },
   { version:'0.27', date:'2026-09-01', title:'Fix lab hint button visibility',
     notes:[
       'Fixed: the lab Hint button could get scrolled far out of view on labs with many steps, since it sat below the entire step checklist inside a small scrolling panel.',

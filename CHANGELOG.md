@@ -12,6 +12,15 @@ tweaks get a patch suffix.
 
 ---
 
+## [0.28] — 2026-09-01
+
+### Lab checklist keeps the active step in view
+
+- Fixed: completing a lab step reset the checklist scroll to the top, forcing you to scroll back down to see the current step every time.
+- The checklist now auto-scrolls so the active step stays visible after each step is checked off.
+
+---
+
 ## [0.27] — 2026-09-01
 
 ### Fix lab hint button visibility

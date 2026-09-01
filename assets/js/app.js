@@ -2012,6 +2012,8 @@ function renderLabTerminal(s) {
     const i2 = el('tinput'); if (i2) i2.focus();
   };
   bindTreeClicks();
+  const activeStep = s.querySelector('.check-item.active');
+  if (activeStep) activeStep.scrollIntoView({ block: 'nearest' });
 }
 function renderTerminal(s) {
   if (!A.sh) { A.sh = new Shell(); A.buffer = []; }
