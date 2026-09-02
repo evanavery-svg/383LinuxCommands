@@ -1,6 +1,6 @@
 # PATHfinder — a Linux command trainer
 
-**v0.18** · &copy; 2026 Avery LLC. All rights reserved.
+**v0.18** · &copy; 2026 Just Press Play LLC. All rights reserved.
 
 A browser game for learning and drilling the Linux command line, built for a
 383 Linux commands class. The course is planned as **seven modules**;
@@ -261,4 +261,4 @@ Nothing leaves the machine.
 
 ---
 
-&copy; 2026 Avery LLC. All rights reserved.
+&copy; 2026 Just Press Play LLC. All rights reserved.

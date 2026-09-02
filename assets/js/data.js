@@ -21,7 +21,7 @@
    ===================================================================== */
 
 const VERSION = '0.33';
-const COPYRIGHT_HOLDER = 'Avery LLC';
+const COPYRIGHT_HOLDER = 'Just Press Play LLC';
 
 /* Newest first. This is the single source of truth for the in-app
    changelog; CHANGELOG.md mirrors it. */
